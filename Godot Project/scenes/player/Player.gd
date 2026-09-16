@@ -3,6 +3,8 @@ extends CharacterBody2D
 @export var move_speed: float = 300.0
 @export var drag: float = 900.0
 
+const CoralScene: PackedScene = preload("res://scenes/coral/Coral.tscn")
+
 func _physics_process(delta: float) -> void:
 	var input_dir := Vector2(
 		Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
@@ -16,4 +18,8 @@ func _physics_process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("plant"):
-		print("plant requested at: ", global_position)
+		var coral := CoralScene.instantiate()
+		coral.global_position = global_position
+		# Coral must outlive the player walking away, so it goes on Main
+		# (our parent in the scene tree) rather than as our own child.
+		get_parent().add_child(coral)
