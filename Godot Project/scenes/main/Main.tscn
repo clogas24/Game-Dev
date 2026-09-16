@@ -1,4 +1,6 @@
-[gd_scene format=3]
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 
 [node name="Main" type="Node2D"]
 
@@ -13,3 +15,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.043137, 0.203922, 0.298039, 1)
+
+[node name="Player" parent="." instance=ExtResource("1")]
+position = Vector2(576, 324)
