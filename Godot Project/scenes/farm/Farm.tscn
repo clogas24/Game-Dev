@@ -1,0 +1,185 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/farm/Farm.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/plot/Plot.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="3"]
+
+[sub_resource type="RectangleShape2D" id="ShopShape"]
+size = Vector2(80, 100)
+
+[node name="Farm" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Background" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="ColorRect" type="ColorRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.043137, 0.203922, 0.298039, 1)
+
+[node name="FarmBorder" type="ColorRect" parent="."]
+offset_left = 128.0
+offset_top = 156.0
+offset_right = 1072.0
+offset_bottom = 822.0
+mouse_filter = 2
+color = Color(0.09, 0.32, 0.4, 1)
+
+[node name="Shop" type="Area2D" parent="."]
+position = Vector2(68, 489)
+
+[node name="ColorRect" type="ColorRect" parent="Shop"]
+offset_left = -40.0
+offset_top = -50.0
+offset_right = 40.0
+offset_bottom = 50.0
+mouse_filter = 2
+color = Color(0.95, 0.85, 0.15, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Shop"]
+shape = SubResource("ShopShape")
+
+[node name="Plots" type="Node2D" parent="."]
+
+[node name="TopPlot0" parent="Plots" instance=ExtResource("2")]
+position = Vector2(200, 250)
+unlock_cost = 50
+
+[node name="TopPlot1" parent="Plots" instance=ExtResource("2")]
+position = Vector2(300, 250)
+unlock_cost = 50
+
+[node name="TopPlot2" parent="Plots" instance=ExtResource("2")]
+position = Vector2(400, 250)
+unlock_cost = 50
+
+[node name="TopPlot3" parent="Plots" instance=ExtResource("2")]
+position = Vector2(500, 250)
+unlock_cost = 50
+
+[node name="TopPlot4" parent="Plots" instance=ExtResource("2")]
+position = Vector2(600, 250)
+unlock_cost = 50
+
+[node name="TopPlot5" parent="Plots" instance=ExtResource("2")]
+position = Vector2(700, 250)
+unlock_cost = 50
+
+[node name="TopPlot6" parent="Plots" instance=ExtResource("2")]
+position = Vector2(800, 250)
+unlock_cost = 50
+
+[node name="TopPlot7" parent="Plots" instance=ExtResource("2")]
+position = Vector2(900, 250)
+unlock_cost = 50
+
+[node name="BottomPlot0" parent="Plots" instance=ExtResource("2")]
+position = Vector2(200, 750)
+unlock_cost = 50
+
+[node name="BottomPlot1" parent="Plots" instance=ExtResource("2")]
+position = Vector2(300, 750)
+unlock_cost = 50
+
+[node name="BottomPlot2" parent="Plots" instance=ExtResource("2")]
+position = Vector2(400, 750)
+unlock_cost = 50
+
+[node name="BottomPlot3" parent="Plots" instance=ExtResource("2")]
+position = Vector2(500, 750)
+unlock_cost = 50
+
+[node name="BottomPlot4" parent="Plots" instance=ExtResource("2")]
+position = Vector2(600, 750)
+unlock_cost = 50
+
+[node name="BottomPlot5" parent="Plots" instance=ExtResource("2")]
+position = Vector2(700, 750)
+unlock_cost = 50
+
+[node name="BottomPlot6" parent="Plots" instance=ExtResource("2")]
+position = Vector2(800, 750)
+unlock_cost = 50
+
+[node name="BottomPlot7" parent="Plots" instance=ExtResource("2")]
+position = Vector2(900, 750)
+unlock_cost = 50
+
+[node name="RightPlot0" parent="Plots" instance=ExtResource("2")]
+position = Vector2(1000, 350)
+unlock_cost = 50
+
+[node name="RightPlot1" parent="Plots" instance=ExtResource("2")]
+position = Vector2(1000, 450)
+unlock_cost = 50
+
+[node name="RightPlot2" parent="Plots" instance=ExtResource("2")]
+position = Vector2(1000, 550)
+unlock_cost = 50
+
+[node name="RightPlot3" parent="Plots" instance=ExtResource("2")]
+position = Vector2(1000, 650)
+unlock_cost = 50
+
+[node name="CenterPlot0" parent="Plots" instance=ExtResource("2")]
+position = Vector2(400, 450)
+owned = true
+unlock_cost = 50
+
+[node name="CenterPlot1" parent="Plots" instance=ExtResource("2")]
+position = Vector2(500, 450)
+owned = true
+unlock_cost = 50
+
+[node name="CenterPlot2" parent="Plots" instance=ExtResource("2")]
+position = Vector2(600, 450)
+unlock_cost = 50
+
+[node name="CenterPlot3" parent="Plots" instance=ExtResource("2")]
+position = Vector2(700, 450)
+unlock_cost = 50
+
+[node name="CenterPlot4" parent="Plots" instance=ExtResource("2")]
+position = Vector2(400, 550)
+owned = true
+unlock_cost = 50
+
+[node name="CenterPlot5" parent="Plots" instance=ExtResource("2")]
+position = Vector2(500, 550)
+owned = true
+unlock_cost = 50
+
+[node name="CenterPlot6" parent="Plots" instance=ExtResource("2")]
+position = Vector2(600, 550)
+unlock_cost = 50
+
+[node name="CenterPlot7" parent="Plots" instance=ExtResource("2")]
+position = Vector2(700, 550)
+unlock_cost = 50
+
+[node name="Player" parent="." instance=ExtResource("3")]
+position = Vector2(500, 650)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="MoneyLabel" type="Label" parent="UI"]
+offset_left = 20.0
+offset_top = 16.0
+offset_right = 260.0
+offset_bottom = 48.0
+theme_override_font_sizes/font_size = 22
+text = "Money: 0"
+
+[node name="CropLabel" type="Label" parent="UI"]
+offset_left = 20.0
+offset_top = 48.0
+offset_right = 320.0
+offset_bottom = 78.0
+theme_override_font_sizes/font_size = 16
+text = "Planting: Kelp (press 1/2)"
