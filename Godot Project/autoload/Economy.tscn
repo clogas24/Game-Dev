@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://autoload/Economy.gd" id="1"]
+
+[node name="Economy" type="Node"]
+script = ExtResource("1")
+starting_money = 100

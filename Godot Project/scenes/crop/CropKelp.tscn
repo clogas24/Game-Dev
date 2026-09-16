@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/crop/Crop.tscn" id="1"]
+
+[node name="CropKelp" instance=ExtResource("1")]
+grow_time = 3.0
+solid_time = 6.0
+decay_time = 4.0
+plant_cost = 10
+sell_value = 25
+decay_sell_multiplier = 0.5
+grow_color = Color(0.55, 0.9, 0.4, 0.45)
+solid_color = Color(0.25, 0.7, 0.3, 1.0)
+decay_color = Color(0.4, 0.45, 0.25, 1.0)
