@@ -1,0 +1,77 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/HelpMenu.gd" id="1"]
+
+[node name="HelpMenu" type="CanvasLayer"]
+script = ExtResource("1")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="Panel" type="PanelContainer" parent="."]
+mouse_filter = 2
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -190.0
+offset_right = 230.0
+offset_bottom = 190.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
+mouse_filter = 2
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Panel/VBoxContainer"]
+mouse_filter = 2
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "How To Play"
+horizontal_alignment = 1
+
+[node name="ContentLabel" type="Label" parent="Panel/VBoxContainer"]
+mouse_filter = 2
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_constants/line_spacing = 8
+autowrap_mode = 3
+text = "Move: WASD or Arrow Keys
+
+Select Crop: number keys 1-5
+(locked crops don't respond)
+
+Plant: Space
+(on an owned, empty plot)
+
+Harvest: E
+(on a fully grown or decaying crop — sells it for money)
+
+Unlock a Plot: E
+(on a locked plot, if you can afford it)
+
+Shop: click the yellow Shop building
+to unlock new crop types for purchase
+
+In the Shop Menu: W/S to choose an item,
+Enter/Space to buy, Click/E/Esc to close"
+
+[node name="CloseHintLabel" type="Label" parent="Panel/VBoxContainer"]
+mouse_filter = 2
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 13
+text = "Click / E / Esc / H: close"
+horizontal_alignment = 1

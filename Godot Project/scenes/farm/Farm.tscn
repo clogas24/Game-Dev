@@ -1,8 +1,12 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scenes/farm/Farm.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/plot/Plot.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="3"]
+[ext_resource type="Script" path="res://scenes/shop/Shop.gd" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/shop/ShopMenu.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HelpMenu.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PlantMenu.tscn" id="7"]
 
 [sub_resource type="RectangleShape2D" id="ShopShape"]
 size = Vector2(80, 100)
@@ -33,6 +37,7 @@ color = Color(0.09, 0.32, 0.4, 1)
 
 [node name="Shop" type="Area2D" parent="."]
 position = Vector2(68, 489)
+script = ExtResource("4")
 
 [node name="ColorRect" type="ColorRect" parent="Shop"]
 offset_left = -40.0
@@ -44,6 +49,12 @@ color = Color(0.95, 0.85, 0.15, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Shop"]
 shape = SubResource("ShopShape")
+
+[node name="ShopMenu" parent="Shop" instance=ExtResource("5")]
+
+[node name="HelpMenu" parent="." instance=ExtResource("6")]
+
+[node name="PlantMenu" parent="." instance=ExtResource("7")]
 
 [node name="Plots" type="Node2D" parent="."]
 
@@ -182,4 +193,26 @@ offset_top = 48.0
 offset_right = 320.0
 offset_bottom = 78.0
 theme_override_font_sizes/font_size = 16
-text = "Planting: Kelp (press 1/2)"
+text = "Planting: Kelp"
+
+[node name="HelpButton" type="Button" parent="UI"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -118.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = 48.0
+grow_horizontal = 0
+text = "? Help (H)"
+
+[node name="PlantMenuButton" type="Button" parent="UI"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -246.0
+offset_top = 16.0
+offset_right = -128.0
+offset_bottom = 48.0
+grow_horizontal = 0
+text = "Crops (P)"

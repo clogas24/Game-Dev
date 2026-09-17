@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CropData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/crops/CropData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Mermaid's Wine Glass"
+plant_cost = 100
+grow_time = 12.0
+solid_time = 16.0
+decay_time = 8.0
+unlock_cost = 300
+color = Color(0.7, 0.55, 0.9, 1)

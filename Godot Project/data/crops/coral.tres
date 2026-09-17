@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CropData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/crops/CropData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Coral"
+plant_cost = 25
+grow_time = 6.0
+solid_time = 10.0
+decay_time = 5.0
+unlock_cost = 40
+color = Color(1.0, 0.35, 0.55, 1)
