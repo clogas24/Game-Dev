@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CropData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/crops/CropData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Dead Man's Fingers"
+plant_cost = 70
+grow_time = 10.0
+solid_time = 14.0
+decay_time = 7.0
+unlock_cost = 150
+color = Color(0.45, 0.4, 0.55, 1)
