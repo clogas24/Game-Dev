@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scenes/farm/Farm.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/plot/Plot.tscn" id="2"]
@@ -7,9 +7,13 @@
 [ext_resource type="PackedScene" path="res://scenes/shop/ShopMenu.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/ui/HelpMenu.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/ui/PlantMenu.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/ui/InventoryMenu.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://scenes/ui/AutoPlanterMenu.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://scenes/ui/WinScreen.tscn" id="10"]
+[ext_resource type="Texture2D" path="res://data/crops/shop.png" id="11"]
 
 [sub_resource type="RectangleShape2D" id="ShopShape"]
-size = Vector2(80, 100)
+size = Vector2(100, 100)
 
 [node name="Farm" type="Node2D"]
 script = ExtResource("1")
@@ -39,13 +43,28 @@ color = Color(0.09, 0.32, 0.4, 1)
 position = Vector2(68, 489)
 script = ExtResource("4")
 
-[node name="ColorRect" type="ColorRect" parent="Shop"]
-offset_left = -40.0
+[node name="Visual" type="TextureRect" parent="Shop"]
+offset_left = -50.0
 offset_top = -50.0
-offset_right = 40.0
+offset_right = 50.0
 offset_bottom = 50.0
 mouse_filter = 2
-color = Color(0.95, 0.85, 0.15, 1)
+texture = ExtResource("11")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ShopLabel" type="Label" parent="Shop"]
+offset_left = -60.0
+offset_top = -72.0
+offset_right = 60.0
+offset_bottom = -50.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.3, 1)
+theme_override_colors/font_outline_color = Color(0.2, 0.12, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 20
+text = "Shop"
+horizontal_alignment = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Shop"]
 shape = SubResource("ShopShape")
@@ -55,6 +74,12 @@ shape = SubResource("ShopShape")
 [node name="HelpMenu" parent="." instance=ExtResource("6")]
 
 [node name="PlantMenu" parent="." instance=ExtResource("7")]
+
+[node name="InventoryMenu" parent="." instance=ExtResource("8")]
+
+[node name="AutoPlanterMenu" parent="." instance=ExtResource("9")]
+
+[node name="WinScreen" parent="." instance=ExtResource("10")]
 
 [node name="Plots" type="Node2D" parent="."]
 
@@ -204,6 +229,7 @@ offset_top = 16.0
 offset_right = -20.0
 offset_bottom = 48.0
 grow_horizontal = 0
+focus_mode = 0
 text = "? Help (H)"
 
 [node name="PlantMenuButton" type="Button" parent="UI"]
@@ -215,4 +241,17 @@ offset_top = 16.0
 offset_right = -128.0
 offset_bottom = 48.0
 grow_horizontal = 0
+focus_mode = 0
 text = "Crops (P)"
+
+[node name="InventoryMenuButton" type="Button" parent="UI"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -374.0
+offset_top = 16.0
+offset_right = -256.0
+offset_bottom = 48.0
+grow_horizontal = 0
+focus_mode = 0
+text = "Inventory (I)"

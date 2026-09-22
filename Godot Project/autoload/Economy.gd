@@ -7,6 +7,9 @@ signal money_changed(new_amount: int)
 var money: int = 0
 
 func _ready() -> void:
+	reset()
+
+func reset() -> void:
 	money = starting_money
 	money_changed.emit(money)
 

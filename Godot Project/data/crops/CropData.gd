@@ -11,6 +11,7 @@ const DECAYED_MULTIPLIER: float = 0.7
 @export var decay_time: float = 5.0
 @export var unlock_cost: int = 0
 @export var color: Color = Color(1, 1, 1, 1)
+@export var texture: Texture2D = null
 
 func harvest_value() -> int:
 	return int(round(plant_cost * HARVEST_MULTIPLIER))

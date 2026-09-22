@@ -22,10 +22,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -230.0
-offset_top = -190.0
-offset_right = 230.0
-offset_bottom = 190.0
+offset_left = -240.0
+offset_top = -280.0
+offset_right = 240.0
+offset_bottom = 280.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -50,8 +50,11 @@ theme_override_constants/line_spacing = 8
 autowrap_mode = 3
 text = "Move: WASD or Arrow Keys
 
-Select Crop: number keys 1-5
-(locked crops don't respond)
+Select Crop: number keys 1-5,
+or open the Inventory (I)
+
+In the Inventory: W/S to choose a crop,
+Enter/Space to select it
 
 Plant: Space
 (on an owned, empty plot)
@@ -63,10 +66,23 @@ Unlock a Plot: E
 (on a locked plot, if you can afford it)
 
 Shop: click the yellow Shop building
-to unlock new crop types for purchase
+to unlock new crop types, or buy an
+Auto Harvester / Auto Planter upgrade
 
 In the Shop Menu: W/S to choose an item,
-Enter/Space to buy, Click/E/Esc to close"
+Enter/Space to buy, Click/E/Esc to close
+
+Place an Upgrade: pick it from the
+Inventory (I), then press E on a plot
+(gold border = Auto Harvester,
+green border = Auto Planter)
+
+Auto Harvester: harvests its plot's crop
+the instant it peaks, before it decays
+
+Auto Planter: needs an Auto Harvester
+on the same plot first; press Q on that
+plot to choose which crop it replants"
 
 [node name="CloseHintLabel" type="Label" parent="Panel/VBoxContainer"]
 mouse_filter = 2

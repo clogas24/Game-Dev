@@ -13,6 +13,9 @@ signal crop_unlocked(index: int)
 var _unlocked: Array[bool] = []
 
 func _ready() -> void:
+	reset()
+
+func reset() -> void:
 	_unlocked.resize(CROP_DATA.size())
 	for i in CROP_DATA.size():
 		_unlocked[i] = CROP_DATA[i].unlock_cost <= 0

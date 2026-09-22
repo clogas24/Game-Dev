@@ -1,6 +1,6 @@
 extends Area2D
 
-const CLICK_SIZE: Vector2 = Vector2(80, 100)
+const CLICK_SIZE: Vector2 = Vector2(100, 100)
 
 @onready var menu: Node = $ShopMenu
 
