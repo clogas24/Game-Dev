@@ -119,3 +119,4 @@ open_auto_planter_menu={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+textures/vram_compression/import_etc2_astc=true
