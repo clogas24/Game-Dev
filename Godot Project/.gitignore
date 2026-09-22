@@ -2,6 +2,3 @@
 .godot/
 /android/
 .vscode/
-
-# Exported platform builds (attach these to the GitHub Release instead)
-/builds/
