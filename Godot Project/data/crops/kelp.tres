@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="CropData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CropData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://data/crops/CropData.gd" id="1"]
+[ext_resource type="Texture2D" path="res://data/crops/kelp.png" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -11,3 +12,4 @@ solid_time = 6.0
 decay_time = 4.0
 unlock_cost = 0
 color = Color(0.25, 0.7, 0.3, 1)
+texture = ExtResource("2")

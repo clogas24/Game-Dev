@@ -2,16 +2,16 @@ extends CanvasLayer
 
 const CURSOR_COLOR: Color = Color(1, 0.9, 0.3, 1)
 const NORMAL_COLOR: Color = Color(1, 1, 1, 1)
-const DENY_COLOR: Color = Color(1, 0.2, 0.2, 1)
-const MAX_ROWS: int = 6
+const MAX_ROWS: int = 7
+
+signal crop_chosen(index: int)
+signal upgrade_chosen(type: int)
 
 var is_open: bool = false
 
 var _entries: Array[Dictionary] = []
 var _cursor: int = 0
 
-@onready var empty_label: Label = $Panel/VBoxContainer/EmptyLabel
-@onready var list_container: VBoxContainer = $Panel/VBoxContainer/ListContainer
 @onready var _rows: Array[Label] = [
 	$Panel/VBoxContainer/ListContainer/Row0,
 	$Panel/VBoxContainer/ListContainer/Row1,
@@ -19,10 +19,12 @@ var _cursor: int = 0
 	$Panel/VBoxContainer/ListContainer/Row3,
 	$Panel/VBoxContainer/ListContainer/Row4,
 	$Panel/VBoxContainer/ListContainer/Row5,
+	$Panel/VBoxContainer/ListContainer/Row6,
 ]
 
 func _ready() -> void:
 	visible = false
+	add_to_group("inventory_menu")
 	PlayerProgress.crop_unlocked.connect(_on_catalog_changed)
 	Upgrades.stock_changed.connect(_on_catalog_changed)
 
@@ -42,17 +44,15 @@ func move_cursor(delta: int) -> void:
 	_cursor = (_cursor + delta + _entries.size()) % _entries.size()
 	_refresh()
 
-func attempt_purchase() -> void:
+func choose_selected() -> void:
 	if _entries.is_empty():
 		return
 	var entry: Dictionary = _entries[_cursor]
-	var success: bool
 	if entry.type == "crop":
-		success = PlayerProgress.try_unlock(entry.index)
+		crop_chosen.emit(entry.index)
 	else:
-		success = Upgrades.try_buy(entry.upgrade_type)
-	if not success:
-		_flash_insufficient()
+		upgrade_chosen.emit(entry.upgrade_type)
+	close()
 
 func _on_catalog_changed(_arg = null) -> void:
 	if is_open:
@@ -60,20 +60,23 @@ func _on_catalog_changed(_arg = null) -> void:
 
 func _build_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	for index in PlayerProgress.get_locked_indices():
-		var data: CropData = PlayerProgress.get_crop_data(index)
+	for i in PlayerProgress.crop_count():
+		if not PlayerProgress.is_unlocked(i):
+			continue
+		var data: CropData = PlayerProgress.get_crop_data(i)
 		entries.append({
 			"type": "crop",
-			"index": index,
-			"label": "%s — %d" % [data.display_name, data.unlock_cost],
+			"index": i,
+			"label": "%s — Plant Cost: %d" % [data.display_name, data.plant_cost],
 		})
 	for upgrade_type in Upgrades.ALL_TYPES:
+		var stock: int = Upgrades.stock(upgrade_type)
+		if stock <= 0:
+			continue
 		entries.append({
 			"type": "upgrade",
 			"upgrade_type": upgrade_type,
-			"label": "%s — %d (own %d)" % [
-				Upgrades.display_name(upgrade_type), Upgrades.cost(upgrade_type), Upgrades.stock(upgrade_type),
-			],
+			"label": "%s (%d in stock) — place with E" % [Upgrades.display_name(upgrade_type), stock],
 		})
 	return entries
 
@@ -81,9 +84,6 @@ func _refresh() -> void:
 	_entries = _build_entries()
 	if _cursor >= _entries.size():
 		_cursor = max(_entries.size() - 1, 0)
-	var is_empty: bool = _entries.is_empty()
-	empty_label.visible = is_empty
-	list_container.visible = not is_empty
 	for i in MAX_ROWS:
 		var row: Label = _rows[i]
 		if i < _entries.size():
@@ -94,13 +94,3 @@ func _refresh() -> void:
 			row.visible = true
 		else:
 			row.visible = false
-
-func _flash_insufficient() -> void:
-	if _cursor >= MAX_ROWS:
-		return
-	var row: Label = _rows[_cursor]
-	var tween := create_tween()
-	tween.tween_property(row, "modulate", DENY_COLOR, 0.08)
-	tween.tween_property(row, "modulate", CURSOR_COLOR, 0.08)
-	tween.tween_property(row, "modulate", DENY_COLOR, 0.08)
-	tween.tween_property(row, "modulate", CURSOR_COLOR, 0.08)

@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="CropData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CropData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://data/crops/CropData.gd" id="1"]
+[ext_resource type="Texture2D" path="res://data/crops/deadmansfingers.png" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -11,3 +12,4 @@ solid_time = 14.0
 decay_time = 7.0
 unlock_cost = 150
 color = Color(0.45, 0.4, 0.55, 1)
+texture = ExtResource("2")
