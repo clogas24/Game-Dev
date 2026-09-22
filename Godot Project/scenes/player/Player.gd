@@ -18,6 +18,7 @@ var _inventory: Node = null
 var _auto_planter_menu: Node = null
 
 @onready var visual: TextureRect = $Visual
+@onready var bubble_trail: CPUParticles2D = $BubbleTrail
 
 func _ready() -> void:
 	add_to_group("player")
@@ -34,6 +35,7 @@ func _physics_process(_delta: float) -> void:
 	if _menu_open():
 		velocity = Vector2.ZERO
 		move_and_slide()
+		_set_moving(false)
 		return
 	var input_dir := Vector2(
 		Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
@@ -45,6 +47,11 @@ func _physics_process(_delta: float) -> void:
 		visual.flip_v = input_dir.y < 0
 	velocity = input_dir * move_speed
 	move_and_slide()
+	_set_moving(input_dir != Vector2.ZERO)
+
+func _set_moving(moving: bool) -> void:
+	bubble_trail.emitting = moving
+	Sfx.set_moving(moving)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact"):
@@ -232,3 +239,4 @@ func _try_plot_interact() -> void:
 		var value: int = selected_plot.crop.harvest()
 		if value > 0:
 			Economy.add_money(value)
+			Sfx.play_harvest()
