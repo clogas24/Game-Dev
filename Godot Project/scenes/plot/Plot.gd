@@ -75,6 +75,7 @@ func _auto_harvest() -> void:
 	var value: int = crop.harvest()
 	if value > 0:
 		Economy.add_money(value)
+		Sfx.play_harvest()
 
 func _on_crop_freed() -> void:
 	crop = null

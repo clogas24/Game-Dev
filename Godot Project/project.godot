@@ -21,6 +21,7 @@ Economy="*res://autoload/Economy.tscn"
 PlayerProgress="*res://autoload/PlayerProgress.tscn"
 Upgrades="*res://autoload/Upgrades.tscn"
 Levels="*res://autoload/Levels.tscn"
+Sfx="*res://autoload/Sfx.tscn"
 
 [display]
 
