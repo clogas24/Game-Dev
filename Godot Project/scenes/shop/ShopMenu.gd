@@ -25,6 +25,7 @@ func _ready() -> void:
 	visible = false
 	PlayerProgress.crop_unlocked.connect(_on_catalog_changed)
 	Upgrades.stock_changed.connect(_on_catalog_changed)
+	Levels.level_2_unlocked.connect(_on_catalog_changed)
 
 func open() -> void:
 	is_open = true
@@ -49,6 +50,8 @@ func attempt_purchase() -> void:
 	var success: bool
 	if entry.type == "crop":
 		success = PlayerProgress.try_unlock(entry.index)
+	elif entry.type == "level":
+		success = Levels.try_unlock_level_2()
 	else:
 		success = Upgrades.try_buy(entry.upgrade_type)
 	if not success:
@@ -60,6 +63,11 @@ func _on_catalog_changed(_arg = null) -> void:
 
 func _build_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
+	if not Levels.is_level_2_unlocked:
+		entries.append({
+			"type": "level",
+			"label": "Unlock Level 2 — %d (auto upgrades + 2 more plants)" % Levels.LEVEL_2_COST,
+		})
 	for index in PlayerProgress.get_locked_indices():
 		var data: CropData = PlayerProgress.get_crop_data(index)
 		entries.append({
@@ -67,14 +75,15 @@ func _build_entries() -> Array[Dictionary]:
 			"index": index,
 			"label": "%s — %d" % [data.display_name, data.unlock_cost],
 		})
-	for upgrade_type in Upgrades.ALL_TYPES:
-		entries.append({
-			"type": "upgrade",
-			"upgrade_type": upgrade_type,
-			"label": "%s — %d (own %d)" % [
-				Upgrades.display_name(upgrade_type), Upgrades.cost(upgrade_type), Upgrades.stock(upgrade_type),
-			],
-		})
+	if Levels.is_level_2_unlocked:
+		for upgrade_type in Upgrades.ALL_TYPES:
+			entries.append({
+				"type": "upgrade",
+				"upgrade_type": upgrade_type,
+				"label": "%s — %d (own %d)" % [
+					Upgrades.display_name(upgrade_type), Upgrades.cost(upgrade_type), Upgrades.stock(upgrade_type),
+				],
+			})
 	return entries
 
 func _refresh() -> void:

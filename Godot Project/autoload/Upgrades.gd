@@ -31,6 +31,8 @@ func stock(type: Type) -> int:
 	return _stock[type]
 
 func try_buy(type: Type) -> bool:
+	if not Levels.is_level_2_unlocked:
+		return false
 	if not Economy.spend_money(COST[type]):
 		return false
 	_stock[type] += 1

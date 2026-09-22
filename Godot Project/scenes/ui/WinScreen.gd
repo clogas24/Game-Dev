@@ -18,4 +18,5 @@ func _on_restart_pressed() -> void:
 	Economy.reset()
 	PlayerProgress.reset()
 	Upgrades.reset()
+	Levels.reset()
 	get_tree().reload_current_scene()
