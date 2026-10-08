@@ -1,0 +1,72 @@
+# Git attributes for the Lantern Keeper Unity project.
+# Applies only to files inside this folder ("Unity Project/My project").
+#
+# Text files are normalized to LF in the repo; binary art/audio/model files
+# are stored with Git LFS so they don't bloat the repository history.
+# Patterns use [xX] character classes so they also match upper-case
+# extensions (e.g. .PNG) on case-sensitive systems like macOS/Linux.
+
+# ---------------------------------------------------------------------------
+# Default: let Git detect text vs. binary and normalize line endings
+# ---------------------------------------------------------------------------
+* text=auto
+
+# Unity YAML assets (.unity, .prefab, .asset, .mat, .anim, .controller, ...)
+# are covered by text=auto above, which keeps them diffable and out of LFS.
+# They are deliberately NOT forced to "text": some .asset files (baked
+# LightingData, NavMesh data) are binary even with Force Text serialization,
+# and auto-detection leaves those alone instead of corrupting them.
+*.cs diff=csharp
+
+# ---------------------------------------------------------------------------
+# Git LFS: images / textures
+# ---------------------------------------------------------------------------
+*.[pP][nN][gG]      filter=lfs diff=lfs merge=lfs -text
+*.[jJ][pP][gG]      filter=lfs diff=lfs merge=lfs -text
+*.[jJ][pP][eE][gG]  filter=lfs diff=lfs merge=lfs -text
+*.[gG][iI][fF]      filter=lfs diff=lfs merge=lfs -text
+*.[bB][mM][pP]      filter=lfs diff=lfs merge=lfs -text
+*.[tT][gG][aA]      filter=lfs diff=lfs merge=lfs -text
+*.[tT][iI][fF]      filter=lfs diff=lfs merge=lfs -text
+*.[tT][iI][fF][fF]  filter=lfs diff=lfs merge=lfs -text
+*.[pP][sS][dD]      filter=lfs diff=lfs merge=lfs -text
+*.[eE][xX][rR]      filter=lfs diff=lfs merge=lfs -text
+*.[hH][dD][rR]      filter=lfs diff=lfs merge=lfs -text
+*.[iI][cC][oO]      filter=lfs diff=lfs merge=lfs -text
+*.[cC][uU][bB][eE]  filter=lfs diff=lfs merge=lfs -text
+
+# ---------------------------------------------------------------------------
+# Git LFS: audio / video
+# ---------------------------------------------------------------------------
+*.[wW][aA][vV]      filter=lfs diff=lfs merge=lfs -text
+*.[mM][pP]3         filter=lfs diff=lfs merge=lfs -text
+*.[oO][gG][gG]      filter=lfs diff=lfs merge=lfs -text
+*.[aA][iI][fF]      filter=lfs diff=lfs merge=lfs -text
+*.[aA][iI][fF][fF]  filter=lfs diff=lfs merge=lfs -text
+*.[fF][lL][aA][cC]  filter=lfs diff=lfs merge=lfs -text
+*.[mM][pP]4         filter=lfs diff=lfs merge=lfs -text
+*.[mM][oO][vV]      filter=lfs diff=lfs merge=lfs -text
+*.[wW][eE][bB][mM]  filter=lfs diff=lfs merge=lfs -text
+
+# ---------------------------------------------------------------------------
+# Git LFS: 3D models
+# ---------------------------------------------------------------------------
+*.[fF][bB][xX]      filter=lfs diff=lfs merge=lfs -text
+*.[oO][bB][jJ]      filter=lfs diff=lfs merge=lfs -text
+*.[bB][lL][eE][nN][dD] filter=lfs diff=lfs merge=lfs -text
+*.[dD][aA][eE]      filter=lfs diff=lfs merge=lfs -text
+*.3[dD][sS]         filter=lfs diff=lfs merge=lfs -text
+*.[gG][lL][bB]      filter=lfs diff=lfs merge=lfs -text
+
+# ---------------------------------------------------------------------------
+# Git LFS: fonts, packages, archives, other binaries
+# ---------------------------------------------------------------------------
+*.[tT][tT][fF]      filter=lfs diff=lfs merge=lfs -text
+*.[oO][tT][fF]      filter=lfs diff=lfs merge=lfs -text
+*.unitypackage      filter=lfs diff=lfs merge=lfs -text
+*.[zZ][iI][pP]      filter=lfs diff=lfs merge=lfs -text
+*.7[zZ]             filter=lfs diff=lfs merge=lfs -text
+*.[dD][lL][lL]      filter=lfs diff=lfs merge=lfs -text
+*.[sS][oO]          filter=lfs diff=lfs merge=lfs -text
+*.[aA]              filter=lfs diff=lfs merge=lfs -text
+*.[pP][dD][fF]      filter=lfs diff=lfs merge=lfs -text
