@@ -2,7 +2,7 @@
 
 The normal route is the menu: **Lantern Keeper > Build Sandbox Scene**. It creates the layers and tag, the placeholder prefabs and materials, the Player prefab, and `Assets/_Project/Scenes/Sandbox.unity`. All menu items can be run again safely; they overwrite the same assets.
 
-Use this page only if a menu item fails, or to check what it should have produced. Field names below are the labels shown in the Inspector.
+Use this page only if a menu item fails, or to check what it should have produced. Field names below are the labels shown in the Inspector. Ghosts, gates, checkpoints, menus and the NavMesh are in `SETUP_WORLD.md`.
 
 ## 1. Project settings
 
@@ -29,8 +29,11 @@ Spirit platforms and the ground stay on **Default**: `ThirdPersonController > Gr
 | Sprint | Pass Through | Left Shift |
 | Flare | Button | F, right mouse button |
 | Throw | Button | E, left mouse button |
+| Drop | Button | G |
 
-The scripts find `Flare`, `Throw`, `Look` and `LookKeys` by name on the player's `PlayerInput`, so the names must match.
+The scripts find `Flare`, `Throw`, `Drop`, `Look` and `LookKeys` by name on the player's `PlayerInput`, so the names must match.
+
+Step 3 added a second map, `Game` (Start, Pause, Restart), used by GameManager. See `SETUP_WORLD.md`.
 
 ## 3. Player prefab
 
@@ -90,11 +93,11 @@ Empty transform. No components.
 | PorchLamp | At (3.6, 0, 9): its radius reaches platform 1 only |
 | Spirit Bridge 2 | Six SpiritPlatforms (scale 2 x 0.3 x 1.5) across z 34..44 |
 | Pickups | Two CandlePickups, two CandyPickups at y 0.7 |
-| TestDummy | Capsule on layer `Ghost` with TestDummy |
+| TestDummy | Capsule on layer `Ghost` with TestDummy (script now in `Scripts/Debug`). Nothing depends on it |
 | Player | Player prefab at (0, 0, -6) |
 | MainCamera | Starter Assets `MainCamera` prefab (has the CinemachineBrain) |
 | PlayerFollowCamera | Starter Assets `PlayerFollowCamera` prefab. **Tracking Target** = `Player/PlayerCameraRoot` |
-| HUD | HUD prefab. **Start Prompt** filled in so the token replacement can be seen |
+| HUD | HUD prefab. **Start Prompt** is left empty since Step 3; the title screen lists the controls and TutorialTriggers show the prompts |
 
 ## 6. Animator parameters
 

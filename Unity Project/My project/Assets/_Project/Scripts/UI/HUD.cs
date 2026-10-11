@@ -57,6 +57,8 @@ namespace LanternKeeper
         private string flareFallback = "F";
         [SerializeField, Tooltip("Shown for {throw}.")]
         private string throwFallback = "E";
+        [SerializeField, Tooltip("Shown for {drop}.")]
+        private string dropFallback = "G";
         [SerializeField, Tooltip("Shown for {jump}.")]
         private string jumpFallback = "Space";
 
@@ -186,6 +188,7 @@ namespace LanternKeeper
             {
                 text = text.Replace("{flare}", ControlName("Flare", flareFallback))
                            .Replace("{throw}", ControlName("Throw", throwFallback))
+                           .Replace("{drop}", ControlName("Drop", dropFallback))
                            .Replace("{jump}", ControlName("Jump", jumpFallback));
             }
             promptLabel.text = text;

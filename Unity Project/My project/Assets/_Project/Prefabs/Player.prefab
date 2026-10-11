@@ -408,7 +408,12 @@ MonoBehaviour:
   throwSpeed: 9
   upwardAngle: 35
   throwStateSeconds: 0.4
+  dropActionName: Drop
+  dropForward: 0.6
+  dropHeight: 0.5
+  dropSpeed: 1
   throwClip: {fileID: 0}
+  dropClip: {fileID: 0}
   emptyClip: {fileID: 0}
   volume: 1
 --- !u!114 &1422292071717157432
