@@ -15,9 +15,10 @@ namespace LanternKeeper.EditorTools
     /// and the Sandbox scene from code, so no .prefab or .unity YAML is written by hand.
     /// Every item is safe to run again: assets are overwritten in place (their GUIDs are kept,
     /// so existing references survive) and the Sandbox scene is rebuilt from scratch.
-    /// docs/SETUP_PLAYER.md describes the same setup for doing it by hand.
+    /// docs/SETUP_PLAYER.md and docs/SETUP_WORLD.md describe the same setup for doing it by hand.
+    /// The ghost, world and menu prefabs and the sandbox test area are in LanternKeeperSetup.World.cs.
     /// </summary>
-    public static class LanternKeeperSetup
+    public static partial class LanternKeeperSetup
     {
         private const string Menu = "Lantern Keeper/";
         private const string PrefabsDir = "Assets/_Project/Prefabs";
@@ -39,8 +40,6 @@ namespace LanternKeeper.EditorTools
         private const string GhostLayerName = "Ghost";
         private const string CameraTargetTag = "CinemachineTarget";
 
-        private const string SandboxPrompt =
-            "Hold {flare} to flare  -  {throw} to throw candy  -  {jump} to jump  -  arrow keys turn the camera";
 
         // ------------------------------------------------------------------ menu items
 
@@ -256,6 +255,8 @@ namespace LanternKeeper.EditorTools
             // Always regenerate the prefabs so the scene matches the current scripts.
             CreatePlaceholderAssets();
             CreatePlayerPrefab();
+            CreateGhostPrefab();
+            CreateWorldPrefabs();
 
             GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
             GameObject platformPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SpiritPlatformPrefabPath);
@@ -295,16 +296,16 @@ namespace LanternKeeper.EditorTools
             // Layout along +Z. Ground tops sit at y = 0; the pit floor is 1 m down so you can jump back out.
             //   Ground A  z -10..10   spawn, pickups, porch lamp
             //   Gap 1     z  10..14   4 m, three spirit platforms, lamp reveals the first
-            //   Ground B  z  14..34   pickups, test dummy
+            //   Ground B  z  14..34   pickups, test dummy, first ghost
             //   Gap 2     z  34..44   10 m, six spirit platforms: flare here and they vanish
-            //   Ground C  z  44..56
+            //   Ground C  z  44..100  Step 3 test area: checkpoint, candy bowls, two gates, goal
             var environment = new GameObject("Environment").transform;
             Material groundMat = AssetDatabase.LoadAssetAtPath<Material>(MaterialsDir + "/M_Ground.mat");
             Material pitMat = AssetDatabase.LoadAssetAtPath<Material>(MaterialsDir + "/M_Pit.mat");
             MakeBox("Ground A", environment, new Vector3(0f, -0.5f, 0f), new Vector3(20f, 1f, 20f), groundMat);
             MakeBox("Ground B", environment, new Vector3(0f, -0.5f, 24f), new Vector3(20f, 1f, 20f), groundMat);
-            MakeBox("Ground C", environment, new Vector3(0f, -0.5f, 50f), new Vector3(20f, 1f, 12f), groundMat);
-            MakeBox("Pit Floor", environment, new Vector3(0f, -1.5f, 23f), new Vector3(20f, 1f, 66f), pitMat);
+            MakeBox("Ground C", environment, new Vector3(0f, -0.5f, 72f), new Vector3(20f, 1f, 56f), groundMat);
+            MakeBox("Pit Floor", environment, new Vector3(0f, -1.5f, 45f), new Vector3(20f, 1f, 110f), pitMat);
 
             var gameplay = new GameObject("Gameplay").transform;
 
@@ -343,7 +344,7 @@ namespace LanternKeeper.EditorTools
             dummy.name = "TestDummy";
             dummy.layer = ghostLayer;
             dummy.transform.SetParent(gameplay, false);
-            dummy.transform.position = new Vector3(4f, 1f, 26f);
+            dummy.transform.position = new Vector3(7f, 1f, 31f);
             dummy.GetComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(MaterialsDir + "/M_TestDummy.mat");
             dummy.AddComponent<TestDummy>();
 
@@ -368,11 +369,13 @@ namespace LanternKeeper.EditorTools
                 Debug.LogWarning("[Lantern Keeper] Could not wire the follow camera; set PlayerFollowCamera > Tracking Target to Player/PlayerCameraRoot by hand.");
             }
 
-            GameObject hud = PlacePrefab(hudPrefab, "HUD", null, Vector3.zero);
-            if (hud.TryGetComponent(out HUD hudComponent))
+            // The title screen lists the controls now, so the HUD start prompt from Step 2 is left empty.
+            PlacePrefab(hudPrefab, "HUD", null, Vector3.zero);
+
+            if (!BuildSandboxTestArea(environment, gameplay))
             {
-                SetString(hudComponent, "startPrompt", SandboxPrompt);
-                RecordOverrides(hudComponent);
+                Debug.LogError("[Lantern Keeper] Sandbox not saved: the Step 3 test area could not be built (see earlier messages).");
+                return;
             }
 
             EditorSceneManager.MarkSceneDirty(scene);

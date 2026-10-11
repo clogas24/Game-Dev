@@ -404,6 +404,7 @@ MonoBehaviour:
   startPromptSeconds: 6
   flareFallback: F
   throwFallback: E
+  dropFallback: G
   jumpFallback: Space
 --- !u!1 &8153815706653374486
 GameObject:

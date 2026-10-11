@@ -40,9 +40,21 @@ namespace LanternKeeper
         [SerializeField, Min(0f), Tooltip("Seconds the player FSM reports Throwing after a throw.")]
         private float throwStateSeconds = 0.4f;
 
+        [Header("Drop")]
+        [SerializeField, Tooltip("Name of the drop action in the PlayerInput actions asset.")]
+        private string dropActionName = "Drop";
+        [SerializeField, Min(0f), Tooltip("How far in front of the player a dropped candy appears (metres).")]
+        private float dropForward = 0.6f;
+        [SerializeField, Min(0f), Tooltip("Height a dropped candy appears at (metres).")]
+        private float dropHeight = 0.5f;
+        [SerializeField, Min(0f), Tooltip("Downward speed of a dropped candy (m/s).")]
+        private float dropSpeed = 1f;
+
         [Header("Audio (optional)")]
         [SerializeField, Tooltip("Played on a successful throw.")]
         private AudioClip throwClip;
+        [SerializeField, Tooltip("Played on a successful drop.")]
+        private AudioClip dropClip;
         [SerializeField, Tooltip("Played when Throw is pressed with no candy.")]
         private AudioClip emptyClip;
         [SerializeField, Range(0f, 1f), Tooltip("Volume for throw sounds.")]
@@ -53,6 +65,7 @@ namespace LanternKeeper
         private Collider _ownCollider;
         private Transform _camera;
         private InputAction _throwAction;
+        private InputAction _dropAction;
         private bool _hasThrowTrigger;
         private int _count;
         private float _cooldownTimer;
@@ -82,6 +95,7 @@ namespace LanternKeeper
             if (TryGetComponent(out PlayerInput playerInput) && playerInput.actions != null)
             {
                 _throwAction = playerInput.actions.FindAction(throwActionName);
+                _dropAction = playerInput.actions.FindAction(dropActionName);
             }
             if (_throwAction == null)
             {
@@ -96,6 +110,34 @@ namespace LanternKeeper
             if (_throwStateTimer > 0f) _throwStateTimer -= dt;
 
             if (_throwAction != null && _throwAction.WasPressedThisFrame()) TryThrow();
+            else if (_dropAction != null && _dropAction.WasPressedThisFrame()) TryDrop();
+        }
+
+        /// <summary>
+        /// Drops one candy at the player's feet instead of lobbing it. Same count, cooldown and
+        /// rules as a throw, and it raises the same events, but it does not play the throw
+        /// animation or put the player FSM into Throwing.
+        /// </summary>
+        public bool TryDrop()
+        {
+            if (candyPrefab == null || _cooldownTimer > 0f) return false;
+            if (_candle != null && !_candle.IsLit) return false;
+            if (_count <= 0)
+            {
+                Sfx.PlayAt(emptyClip, transform.position, volume);
+                return false;
+            }
+
+            Vector3 origin = transform.position + transform.forward * dropForward + Vector3.up * dropHeight;
+            Candy candy = Instantiate(candyPrefab, origin, Quaternion.identity);
+            candy.Launch(Vector3.down * dropSpeed, _ownCollider);
+
+            _count--;
+            _cooldownTimer = cooldown;
+            Sfx.PlayAt(dropClip, origin, volume);
+            OnCountChanged?.Invoke(_count, maxCount);
+            GameEvents.RaiseCandyThrown(origin);
+            return true;
         }
 
         /// <summary>Throws one candy if allowed. Returns true if a candy left the hand.</summary>
