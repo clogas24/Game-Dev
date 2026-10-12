@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using StarterAssets;
 using Unity.Cinemachine;
 using UnityEngine;
@@ -16,6 +17,20 @@ namespace LanternKeeper
         Paused = 2,
         Extinguished = 3,
         Won = 4
+    }
+
+    /// <summary>Why the lantern last went out. Recorded by the playtest logger.</summary>
+    public enum ExtinguishCause
+    {
+        None = 0,
+        /// <summary>The candle burned down by itself.</summary>
+        Drained = 1,
+        /// <summary>The candle ran out while the flare was held.</summary>
+        FlaredOut = 2,
+        /// <summary>A ghost hit took the last of the candle.</summary>
+        GhostHit = 3,
+        /// <summary>The player fell below Fall Death Height.</summary>
+        Fell = 4
     }
 
     /// <summary>
@@ -35,7 +50,7 @@ namespace LanternKeeper
     ///   TITLE        -- Start (any key / click) after titleInputDelay --> PLAYING
     ///   PLAYING      -- Pause (Esc) ------------------------------------> PAUSED
     ///   PAUSED       -- Pause (Esc) or Resume button -------------------> PLAYING
-    ///   PLAYING      -- candle reaches 0 -------------------------------> EXTINGUISHED
+    ///   PLAYING      -- candle reaches 0, or fell below fallDeathHeight -> EXTINGUISHED
     ///   EXTINGUISHED -- respawnDelay elapsed (respawn at checkpoint) ---> PLAYING
     ///   PLAYING      -- GoalTrigger reached with the candle lit --------> WON
     ///   PAUSED       -- Restart button ---------------------------------> scene reload
@@ -48,6 +63,14 @@ namespace LanternKeeper
     {
         private static readonly int SpeedParam = Animator.StringToHash("Speed");
         private static bool s_skipTitleOnce;
+
+        // ThirdPersonController keeps the camera angles and its fall speed in private fields and
+        // offers no way to set them. They are reached by reflection so the Starter Assets script
+        // stays untouched (and survives a re-import of the package).
+        private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        private static readonly FieldInfo s_cameraYawField = typeof(ThirdPersonController).GetField("_cinemachineTargetYaw", PrivateInstance);
+        private static readonly FieldInfo s_cameraPitchField = typeof(ThirdPersonController).GetField("_cinemachineTargetPitch", PrivateInstance);
+        private static readonly FieldInfo s_verticalVelocityField = typeof(ThirdPersonController).GetField("_verticalVelocity", PrivateInstance);
 
         public static GameManager Instance { get; private set; }
 
@@ -66,6 +89,8 @@ namespace LanternKeeper
         private string extinguishedMessage = "Your lantern went out...";
         [SerializeField, Tooltip("If the player falls below this height the lantern goes out (they respawn at the checkpoint).")]
         private float fallDeathHeight = -25f;
+        [SerializeField, Range(-30f, 70f), Tooltip("Camera pitch after a respawn (degrees, positive looks down). The yaw comes from the checkpoint's Respawn Point.")]
+        private float respawnCameraPitch = 10f;
 
         [Header("Input")]
         [SerializeField, Tooltip("Actions asset with the 'Game' map. Empty = use the player's PlayerInput asset, or built-in keys.")]
@@ -96,6 +121,7 @@ namespace LanternKeeper
         private PlayerInput _playerInput;
         private CharacterController _controller;
         private PlayerKnockback _knockback;
+        private LanternController _lantern;
         private Animator _playerAnimator;
         private bool _hasSpeedParam;
 
@@ -108,6 +134,9 @@ namespace LanternKeeper
         private Quaternion _startRotation;
         private int _enableInputFrame = -1;
         private bool _evasion;
+        private bool _fell;
+        private int _lastHitFrame = -1;
+        private bool _warnedCameraFields;
 
         /// <summary>Raised on every mode change. Arguments: previous mode, next mode.</summary>
         public event Action<GameMode, GameMode> OnModeChanged;
@@ -124,6 +153,8 @@ namespace LanternKeeper
         public bool IsEvasion => _evasion;
         /// <summary>Candle left, 0..1 (for the win screen).</summary>
         public float CandleLeft => _candle != null ? _candle.Normalized : 0f;
+        /// <summary>Why the lantern last went out. Set before the mode changes to Extinguished.</summary>
+        public ExtinguishCause LastExtinguishCause { get; private set; }
 
         private void Awake()
         {
@@ -149,11 +180,13 @@ namespace LanternKeeper
                 _playerInput = _candle.GetComponent<PlayerInput>();
                 _controller = _candle.GetComponent<CharacterController>();
                 _knockback = _candle.GetComponent<PlayerKnockback>();
+                _lantern = _candle.GetComponent<LanternController>();
                 _playerAnimator = _candle.GetComponent<Animator>();
                 _hasSpeedParam = AnimatorParams.Has(_playerAnimator, SpeedParam, AnimatorControllerParameterType.Float);
                 _startPosition = _player.position;
                 _startRotation = _player.rotation;
                 _candle.OnExtinguished += HandleExtinguished;
+                GameEvents.PlayerHit += HandlePlayerHit;
             }
             else
             {
@@ -173,6 +206,7 @@ namespace LanternKeeper
             if (Instance != this) return;
             Instance = null;
             if (_candle != null) _candle.OnExtinguished -= HandleExtinguished;
+            GameEvents.PlayerHit -= HandlePlayerHit;
             if (_gameMap != null) _gameMap.Disable();
             for (int i = 0; i < _ownedActions.Count; i++) _ownedActions[i].Dispose();
             Time.timeScale = 1f;
@@ -226,6 +260,7 @@ namespace LanternKeeper
         /// <summary>Quits the game (stops Play mode in the Editor).</summary>
         public void Quit()
         {
+            GameEvents.RaiseQuitRequested();
             Time.timeScale = 1f;
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -258,7 +293,11 @@ namespace LanternKeeper
                 case GameMode.Playing:
                     _playTime += unscaled;
                     if (GhostAI.AnyAlert != _evasion) SetEvasion(GhostAI.AnyAlert);
-                    if (_player != null && _player.position.y < fallDeathHeight && _candle.IsLit) _candle.SetTo(0f);
+                    if (_player != null && _player.position.y < fallDeathHeight && _candle.IsLit)
+                    {
+                        _fell = true;
+                        _candle.SetTo(0f);
+                    }
                     if (_pauseAction.WasPressedThisFrame()) Pause();
                     break;
 
@@ -278,9 +317,21 @@ namespace LanternKeeper
             }
         }
 
+        private void HandlePlayerHit(Vector3 sourcePosition) => _lastHitFrame = Time.frameCount;
+
         private void HandleExtinguished()
         {
+            bool fell = _fell;
+            _fell = false;
             if (_mode != GameMode.Playing) return;
+
+            // A ghost hit raises PlayerHit and takes the candle in the same frame. The lantern
+            // still reports the flare here: it only drops it on its next Update.
+            if (fell) LastExtinguishCause = ExtinguishCause.Fell;
+            else if (_lastHitFrame == Time.frameCount) LastExtinguishCause = ExtinguishCause.GhostHit;
+            else if (_lantern != null && _lantern.IsFlaring) LastExtinguishCause = ExtinguishCause.FlaredOut;
+            else LastExtinguishCause = ExtinguishCause.Drained;
+
             _deaths++;
             SetMode(GameMode.Extinguished);
         }
@@ -324,7 +375,10 @@ namespace LanternKeeper
 
                 case GameMode.Extinguished:
                     Time.timeScale = 1f;
-                    SetGameplayInput(false);
+                    // Input goes off but ThirdPersonController keeps running on zeroed input, so
+                    // its own gravity, ground check and landing finish a jump or a fall. Disabling
+                    // it would leave the player hanging in the air until the respawn.
+                    SetGameplayInput(false, true);
                     SetCursorLocked(true);
                     SetEvasion(false);
                     if (HUD.Instance != null) HUD.Instance.ShowPrompt(extinguishedMessage, respawnDelay);
@@ -360,28 +414,65 @@ namespace LanternKeeper
             if (_player != null)
             {
                 // A CharacterController overrides transform changes unless it is disabled first.
-                Vector3 before = _player.position;
+                float yaw = rotation.eulerAngles.y;
                 if (_controller != null) _controller.enabled = false;
-                _player.SetPositionAndRotation(position, Quaternion.Euler(0f, rotation.eulerAngles.y, 0f));
+                _player.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
                 if (_controller != null) _controller.enabled = true;
-                if (_mover != null && _mover.CinemachineCameraTarget != null)
-                {
-                    CinemachineCore.OnTargetObjectWarped(_mover.CinemachineCameraTarget.transform, _player.position - before);
-                }
+                SnapCameraBehindPlayer(yaw);
             }
 
             if (_candle != null) _candle.SetTo(Mathf.Max(_candle.Current, candleFraction * _candle.Max));
             if (_knockback != null) _knockback.ResetState();
 
+            // Candy first (thrown or landed), so a ghost cannot re-claim one that is on its way out.
+            Candy.ClearAll();
             IReadOnlyList<GhostAI> ghosts = GhostAI.All;
             for (int i = 0; i < ghosts.Count; i++) ghosts[i].ResetToPatrol();
 
-            IReadOnlyList<Candy> candy = Candy.Landed;
-            for (int i = candy.Count - 1; i >= 0; i--) Destroy(candy[i].gameObject);
+            // Everyone has just been moved; the plates and gates below read the physics scene.
+            Physics.SyncTransforms();
+            IReadOnlyList<PressurePlate> plates = PressurePlate.All;
+            for (int i = 0; i < plates.Count; i++) plates[i].ResetForRespawn();
+            IReadOnlyList<Gate> gates = Gate.All;
+            for (int i = 0; i < gates.Count; i++) gates[i].ResetForRespawn();
 
             Sfx.Play2D(respawnClip, volume);
             SetMode(GameMode.Playing);
             GameEvents.RaisePlayerRespawned();
+        }
+
+        /// <summary>
+        /// Points the follow camera along <paramref name="yaw"/> and cuts to it. Starter Assets
+        /// rebuilds PlayerCameraRoot's rotation from two private angles every LateUpdate, so
+        /// those are set as well as the rotation itself; the Cinemachine camera is then told
+        /// its previous state is invalid, which skips the damping for one frame instead of
+        /// letting the camera glide across the map.
+        /// </summary>
+        private void SnapCameraBehindPlayer(float yaw)
+        {
+            if (_mover == null || _mover.CinemachineCameraTarget == null) return;
+
+            if (s_cameraYawField != null && s_cameraPitchField != null)
+            {
+                s_cameraYawField.SetValue(_mover, yaw);
+                s_cameraPitchField.SetValue(_mover, respawnCameraPitch);
+            }
+            else if (!_warnedCameraFields)
+            {
+                _warnedCameraFields = true;
+                Debug.LogWarning("[GameManager] ThirdPersonController's camera angle fields were not found; the camera keeps its old direction after a respawn.", this);
+            }
+            // The fall speed built up before the respawn must not carry over.
+            if (s_verticalVelocityField != null) s_verticalVelocityField.SetValue(_mover, 0f);
+
+            Transform target = _mover.CinemachineCameraTarget.transform;
+            target.rotation = Quaternion.Euler(respawnCameraPitch + _mover.CameraAngleOverride, yaw, 0f);
+
+            for (int i = 0; i < CinemachineCore.VirtualCameraCount; i++)
+            {
+                CinemachineVirtualCameraBase vcam = CinemachineCore.GetVirtualCamera(i);
+                if (vcam != null && vcam.Follow == target) vcam.PreviousStateIsValid = false;
+            }
         }
 
         private void SetEvasion(bool evasion)
@@ -393,10 +484,11 @@ namespace LanternKeeper
 
         // ------------------------------------------------------------------ player control
 
-        private void SetGameplayInput(bool enabled)
+        // keepMoving: leave ThirdPersonController running (on zeroed input) while input is off.
+        private void SetGameplayInput(bool enabled, bool keepMoving = false)
         {
             if (!enabled) _enableInputFrame = -1;
-            if (_mover != null) _mover.enabled = enabled;
+            if (_mover != null) _mover.enabled = enabled || keepMoving;
             if (_playerInput != null)
             {
                 if (enabled) _playerInput.ActivateInput();

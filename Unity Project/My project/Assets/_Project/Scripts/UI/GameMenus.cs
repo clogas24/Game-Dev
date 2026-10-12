@@ -13,6 +13,7 @@ namespace LanternKeeper
     /// sensitivity slider to KeyboardCameraLook.Sensitivity (saved in PlayerPrefs).
     /// Menus work with the mouse and with the keyboard alone (arrows / WASD + Enter), because
     /// the first button of each panel is selected when it opens.
+    /// The pause and win screens show where the playtest CSVs are saved and can open the folder.
     /// Setup: on a Screen Space Overlay canvas with a GraphicRaycaster, plus an EventSystem with
     /// an InputSystemUIInputModule in the scene. Wire the three panels and their widgets. It
     /// finds GameManager.Instance and the player by itself.
@@ -50,6 +51,16 @@ namespace LanternKeeper
         [SerializeField, Tooltip("Restarts the level from the win screen.")]
         private Button winRestartButton;
 
+        [Header("Playtest data (optional)")]
+        [SerializeField, Tooltip("Pause screen text showing where the playtest CSVs are saved.")]
+        private TMP_Text pauseSavePathLabel;
+        [SerializeField, Tooltip("Pause screen button that opens the playtest folder.")]
+        private Button pauseOpenFolderButton;
+        [SerializeField, Tooltip("Win screen text showing where the playtest CSVs are saved.")]
+        private TMP_Text winSavePathLabel;
+        [SerializeField, Tooltip("Win screen button that opens the playtest folder.")]
+        private Button winOpenFolderButton;
+
         private GameManager _game;
         private KeyboardCameraLook _cameraLook;
 
@@ -63,6 +74,8 @@ namespace LanternKeeper
             if (restartButton != null) restartButton.onClick.AddListener(HandleRestart);
             if (winRestartButton != null) winRestartButton.onClick.AddListener(HandleRestart);
             if (quitButton != null) quitButton.onClick.AddListener(HandleQuit);
+            if (pauseOpenFolderButton != null) pauseOpenFolderButton.onClick.AddListener(PlaytestLogger.OpenFolder);
+            if (winOpenFolderButton != null) winOpenFolderButton.onClick.AddListener(PlaytestLogger.OpenFolder);
 
             if (sensitivitySlider != null)
             {
@@ -105,13 +118,31 @@ namespace LanternKeeper
             SetActive(pausePanel, mode == GameMode.Paused);
             SetActive(winPanel, mode == GameMode.Won);
 
-            if (mode == GameMode.Paused) Select(resumeButton);
+            if (mode == GameMode.Paused)
+            {
+                ShowSavePath(pauseSavePathLabel, pauseOpenFolderButton);
+                Select(resumeButton);
+            }
             else if (mode == GameMode.Won)
             {
                 if (winStatsLabel != null) winStatsLabel.text = BuildWinText();
+                ShowSavePath(winSavePathLabel, winOpenFolderButton);
                 Select(winRestartButton);
             }
             else Select(null);
+        }
+
+        // Hidden when the scene has no PlaytestLogger.
+        private static void ShowSavePath(TMP_Text label, Button openButton)
+        {
+            PlaytestLogger logger = PlaytestLogger.Instance;
+            bool logging = logger != null && logger.SessionStarted;
+            if (label != null)
+            {
+                label.gameObject.SetActive(logging);
+                if (logging) label.text = $"Playtest data ({logger.Session}) saved to:\n{PlaytestLogger.FolderPath}";
+            }
+            if (openButton != null) openButton.gameObject.SetActive(logging);
         }
 
         private void HandleResume()

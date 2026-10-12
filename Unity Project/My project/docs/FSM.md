@@ -161,7 +161,7 @@ stateDiagram-v2
     Title --> Playing: Start pressed (any key or click) after titleInputDelay (0.3 s)
     Playing --> Paused: Pause pressed (Esc)
     Paused --> Playing: Pause pressed (Esc) or Resume button
-    Playing --> Extinguished: candle reaches 0, or player below fallDeathHeight (-25 m)
+    Playing --> Extinguished: candle reaches 0, or player below fallDeathHeight (-25 m, -4 m in Level01)
     Extinguished --> Playing: respawnDelay (2 s) elapsed, respawn at checkpoint
     Playing --> Won: GoalTrigger reached with candle lit
 
@@ -178,12 +178,12 @@ stateDiagram-v2
 | Title | Playing | `Start` action pressed (any key or left click) at least `titleInputDelay` (0.3 s, unscaled) after loading | `GameManager.Update` -> `StartGame` |
 | Playing | Paused | `Pause` action pressed (Esc) | `GameManager.Update` -> `Pause` |
 | Paused | Playing | `Pause` action pressed (Esc), or the Resume button | `GameManager.Update` -> `Resume`; `GameMenus.HandleResume` |
-| Playing | Extinguished | `CandleManager.OnExtinguished` (candle reached 0). Also raised when the player falls below `fallDeathHeight` (-25 m), which sets the candle to 0 | `GameManager.HandleExtinguished`; fall check in `GameManager.Update` |
-| Extinguished | Playing | `respawnDelay` (2 s) elapsed: `Respawn()` teleports to the last checkpoint (or the start), sets the candle to at least `minCandleOnRespawn` (60%), resets knockback and every ghost, clears landed candy, raises `GameEvents.PlayerRespawned` | `GameManager.Update` -> `Respawn` |
+| Playing | Extinguished | `CandleManager.OnExtinguished` (candle reached 0). Also raised when the player falls below `fallDeathHeight` (-25 m by default, -4 m in Level01), which sets the candle to 0. `LastExtinguishCause` is set first: Fell, GhostHit, FlaredOut or Drained | `GameManager.HandleExtinguished`; fall check in `GameManager.Update` |
+| Extinguished | Playing | `respawnDelay` (2 s) elapsed: `Respawn()` teleports to the last checkpoint (or the start), cuts the camera to face the way the respawn point faces, sets the candle to at least `minCandleOnRespawn` (60%), resets knockback, clears all candy (landed or in the air), resets every ghost, then resets plates and gates (latched plates and gates that stay open once opened are left alone), and raises `GameEvents.PlayerRespawned` | `GameManager.Update` -> `Respawn`; `Candy.ClearAll`, `PressurePlate.ResetForRespawn`, `Gate.ResetForRespawn` |
 | Playing | Won | `GoalTrigger.OnTriggerEnter` with the candle lit calls `Win()`; raises `GameEvents.LevelCompleted` | `GoalTrigger.OnTriggerEnter` -> `GameManager.Win` |
 | Paused | scene reload | Restart button | `GameMenus.HandleRestart` -> `GameManager.Restart` |
 | Won | scene reload | `Restart` action pressed (R), or the Play again button | `GameManager.Update` -> `Restart`; `GameMenus.HandleRestart` |
-| Paused | quit | Quit button | `GameMenus.HandleQuit` -> `GameManager.Quit` |
+| Paused | quit | Quit button. Raises `GameEvents.QuitRequested` first, so the playtest logger saves | `GameMenus.HandleQuit` -> `GameManager.Quit` |
 
 ### What each mode sets (`GameManager.EnterMode`)
 
@@ -192,5 +192,5 @@ stateDiagram-v2
 | Title | 0 | paused | off | free | no |
 | Playing | 1 | running | on (one frame after entering) | locked | yes |
 | Paused | 0 | paused | off | free | no |
-| Extinguished | 1 | n/a (candle is 0) | off | locked | yes |
+| Extinguished | 1 | n/a (candle is 0) | input off; the movement script keeps running on zeroed input, so the player falls and lands | locked | yes |
 | Won | 0 | paused | off | free | no |

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -23,6 +24,8 @@ namespace LanternKeeper
     /// </summary>
     public class Gate : MonoBehaviour
     {
+        private static readonly List<Gate> s_all = new List<Gate>(4);
+
         [Header("Plates")]
         [SerializeField, Tooltip("Plates that can open this gate. Empty = script or event control only.")]
         private PressurePlate[] plates;
@@ -85,6 +88,13 @@ namespace LanternKeeper
         private bool _forced;
         private bool _latched;
 
+        /// <summary>Every enabled gate. Used by GameManager (respawn reset) and the playtest logger.</summary>
+        public static IReadOnlyList<Gate> All => s_all;
+
+        /// <summary>The plates that can open this gate (may be empty).</summary>
+        public IReadOnlyList<PressurePlate> Plates => plates ?? Array.Empty<PressurePlate>();
+        /// <summary>True once a Stay Open Once Opened gate has been opened by its plates.</summary>
+        public bool IsLatched => _latched;
         /// <summary>True while the gate is open or opening by plates, script or latch.</summary>
         public bool IsOpen => _wantsOpen;
         /// <summary>True once the door has finished opening.</summary>
@@ -120,6 +130,38 @@ namespace LanternKeeper
                 _wantsOpen = true;
                 _t = 1f;
             }
+            ApplyDoor();
+        }
+
+        private void OnEnable() => s_all.Add(this);
+
+        private void OnDisable() => s_all.Remove(this);
+
+        /// <summary>
+        /// Player respawn: a gate that is only open because its plates are (or were just) held
+        /// shuts at once, so the puzzle starts clean. A gate that latched open (Stay Open Once
+        /// Opened), was forced open or was opened by script stays open: a solved gate stays
+        /// solved. Call it after the plates have been reset. The door never snaps shut on
+        /// someone standing in the doorway.
+        /// </summary>
+        public void ResetForRespawn()
+        {
+            _checkTimer = checkInterval;
+            if (_forced || _manualOpen || _latched) return;
+
+            bool platesSatisfied = plates != null && plates.Length > 0 && PressedCount >= requiredPlates;
+            if (platesSatisfied)
+            {
+                if (stayOpenOnceOpened) _latched = true;
+                SetWantsOpen(true);
+                return;
+            }
+
+            SetWantsOpen(false);
+            if (_t <= 0f) return;
+            _doorwayBlocked = DoorwayOccupied();
+            if (_doorwayBlocked) return;
+            _t = 0f;
             ApplyDoor();
         }
 
@@ -200,5 +242,8 @@ namespace LanternKeeper
             Gizmos.matrix = transform.localToWorldMatrix;
             Gizmos.DrawWireCube(doorwayCenter, doorwaySize);
         }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => s_all.Clear();
     }
 }
