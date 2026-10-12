@@ -43,6 +43,8 @@ Step 3 added a second map, `Game` (Start, Pause, Restart), used by GameManager. 
 
 Already on it from Starter Assets: Animator, CharacterController, ThirdPersonController, BasicRigidBodyPush, StarterAssetsInputs, PlayerInput.
 
+Step 5 overrides two things on those: **Animator > Controller** = `Animations/Player.controller` (a copy of the Starter Assets controller with IK Pass on, see `ANIMATION.md`), and **ThirdPersonController > Footstep Audio Volume** = 0 (PlayerSounds plays the steps through the mixer instead).
+
 | Component | Set or wire |
 |---|---|
 | PlayerInput | **Actions** = `LanternKeeper.inputactions`, **Default Scheme** = `KeyboardMouse`, **Default Map** = `Player`, **Behavior** = Send Messages (unchanged) |
@@ -52,6 +54,10 @@ Already on it from Starter Assets: Animator, CharacterController, ThirdPersonCon
 | PlayerKnockback | Nothing to wire |
 | PlayerStateTracker | Nothing to wire |
 | KeyboardCameraLook | Nothing to wire |
+| LanternProp (Step 5) | **Prop** = `Lantern/LanternVisual`, **Handle** = `LanternHandle`, **Lantern Light** = the Lantern's Light, **Glow Renderers** = `LanternFace`, **Flame** = `LanternFlame`. Lantern-raise, carry sway, hand IK and the throw motion |
+| PlayerSounds (Step 5) | **Footstep Clips**, **Land Clip**, **Flare Loop Clip**, **Output Group** = the mixer's SFX group |
+
+The audio clip fields on CandleManager, LanternController, CandyThrower and PlayerKnockback are all filled in (`SETUP_WORLD.md`, section 8).
 
 ### Player > Lantern (new child, local position 0.3, 1.0, 0.35)
 
@@ -60,7 +66,7 @@ Already on it from Starter Assets: Animator, CharacterController, ThirdPersonCon
 | Light | Type Point, colour warm orange (255, 158, 64), Intensity 4, Shadows None. Range is overwritten at runtime |
 | RevealLight | **Radius** 6, **Linked Light** = the Light on this object, **Overexposing** off |
 
-Optional child `LanternVisual`: a sphere scaled 0.22 with its collider removed and material `M_Lantern`.
+Child `LanternVisual` (local position 0, -0.13, 0): the jack-o'-lantern the player carries. It holds `LanternPumpkin` (mesh `LK_Pumpkin`, `M_LK_Palette`), `LanternFace` (mesh `LK_JackFace`, `M_Lantern`, emissive), `LanternHandle` (an empty the right hand is pinned to) and `LanternFlame` (particles). LanternProp moves `LanternVisual`; the `Lantern` object itself, with the Light and the RevealLight, never moves.
 
 ### Player > ThrowOrigin (new child, local position 0.3, 1.3, 0.5)
 
@@ -74,14 +80,16 @@ Empty transform. No components.
 
 | Prefab | Objects and components | Wire |
 |---|---|---|
-| Candy | Sphere scaled 0.2: MeshRenderer (`M_Candy`), SphereCollider, Rigidbody (mass 0.1, Collision Detection Continuous Dynamic), Candy | Nothing |
-| CandlePickup | Root: SphereCollider (**Is Trigger**, radius 0.7), CandlePickup. Child `Visual`: cylinder, no collider, `M_CandlePickup` | **Visual** = the child |
-| CandyPickup | Root: SphereCollider (**Is Trigger**, radius 0.7), CandyPickup. Child `Visual`: cube, no collider, `M_CandyPickup` | **Visual** = the child |
-| SpiritPlatform | Cube scaled 2 x 0.3 x 2: MeshRenderer (`M_SpiritPlatform`, cast shadows off), BoxCollider, SpiritPlatform. Layer Default | Nothing (renderers and colliders are found automatically) |
-| PorchLamp | Root empty. Child `Post`: cylinder. Child `Lamp` at y 2.2: Light (Point), RevealLight (**Radius** 4). Grandchild `Glow`: sphere, no collider, `M_LampGlow` | RevealLight **Linked Light** = the Light on `Lamp` |
-| HUD | Root: Canvas (Screen Space Overlay), CanvasScaler (Scale With Screen Size, 1920 x 1080), HUD. Children: `CandleBar` (Image, dark) > `Fill` (Image, orange, stretched) and `CandleLabel` (TMP); `CandyLabel` (TMP); `Prompt` (TMP + CanvasGroup, alpha 0) | **Candle Fill** = `Fill` RectTransform, **Candle Fill Image** = `Fill` Image, **Candle Label**, **Candy Label**, **Prompt Label**, **Prompt Group** |
+| Candy | Root scaled 0.2: SphereCollider, Rigidbody (mass 0.1, Collision Detection Continuous Dynamic), Candy, **no renderer**. Child `Wrap`: mesh `LK_Candy`, `M_Candy` | Nothing |
+| CandlePickup | Root: SphereCollider (**Is Trigger**, radius 0.7), CandlePickup. Child `Visual` (empty, spins and bobs) > `Wax` (mesh `LK_Candle`, `M_CandlePickup`) and `Flame` (mesh `LK_Flame`, `M_LampGlow`) | **Visual** = the child |
+| CandyPickup | Root: SphereCollider (**Is Trigger**, radius 0.7), CandyPickup. Child `Visual` > `Wrap` (mesh `LK_Candy`, `M_CandyPickup`) | **Visual** = the child |
+| SpiritPlatform | Cube scaled 2 x 0.3 x 2: MeshRenderer (`M_SpiritPlatform`, cast shadows off), BoxCollider, SpiritPlatform. Layer Default. No child renderers: the script takes its light sample points from the renderers' bounds | Nothing (renderers and colliders are found automatically) |
+| PorchLamp | Root empty. Children `Post` (cylinder) and `Base`. Child `Lamp` at y 2.2: Light (Point), RevealLight (**Radius** 4), with `Glow` (sphere, `M_LampGlow`) inside `Cage` (mesh `LK_LanternCage`) | RevealLight **Linked Light** = the Light on `Lamp` |
+| HUD | Root: Canvas (Screen Space Overlay), CanvasScaler (Scale With Screen Size, 1920 x 1080), HUD, NoteReader. Children: `CandleDish`; `CandleBar` (turned 90 degrees so it stands up) > `Fill` > `CandleFlame`; `CandleLabel`; `CandyIcon`; `CandyLabel`; `Prompt` (CanvasGroup) > `PromptBack`, `PromptLabel`; `NotePrompt` (CanvasGroup); `NotePanel` (CanvasGroup) > `NoteTitle`, `NoteBody`, `NoteHint` | HUD: **Candle Fill** = `Fill` RectTransform, **Candle Fill Image** = `Fill` Image, **Candle Flame**, **Candle Label**, **Candy Label**, **Prompt Label**, **Prompt Group**. NoteReader: the two CanvasGroups and four texts |
 
-`M_SpiritPlatform` must be URP/Lit with **Surface Type = Transparent**, Blending Mode Alpha, cyan base colour. The script writes the alpha through a MaterialPropertyBlock, so an opaque material will not fade.
+`M_SpiritPlatform` uses the shader `LanternKeeper/SpiritPlatform` (`Art/Shaders`): transparent, unlit, cyan, with a bright rim. The script writes the alpha of `_BaseColor` through a MaterialPropertyBlock, so any replacement shader must be transparent and have a `_BaseColor` property, or the platform will not fade.
+
+Fonts: headings use `Art/Fonts/LK_Title SDF` (Creepster), everything else `Art/Fonts/LK_Body SDF` (Lato). Both are baked once from the TTFs in `Art/ThirdParty/Fonts`; delete a font asset and run any menu item to bake it again.
 
 ## 5. Sandbox scene
 
@@ -101,7 +109,7 @@ Empty transform. No components.
 
 ## 6. Animator parameters
 
-The player uses the Starter Assets controller as it is. These parameters are **optional today**: each script checks whether the parameter exists and skips it if not. Add them in Step 5 when the flare pose and throw animation go in.
+The player uses `Animations/Player.controller`, a copy of the Starter Assets controller. Since Step 5 it has the four parameters below (each script still checks that a parameter exists before setting it). No state uses them yet: the lantern-raise and the throw are procedural (`LanternProp`), and the parameters are ready for clips to be hooked to later. See `ANIMATION.md`.
 
 | Parameter | Type | Set by | When |
 |---|---|---|---|

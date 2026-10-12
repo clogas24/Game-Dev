@@ -54,6 +54,8 @@ stateDiagram-v2
 
 "Locomotion" is not a state in code; it groups Idle, Walking, Running and Airborne, which the player drops back into according to grounding and speed.
 
+How each state is animated (Starter Assets clips for locomotion; a procedural lantern-raise for Flaring and arm swing for Throwing) is in `docs/ANIMATION.md`.
+
 ### Player transition table
 
 All transitions are decided in `PlayerStateTracker.Evaluate()` and applied in `PlayerStateTracker.LateUpdate()`. The "Condition source" column says which component supplies the fact.
@@ -66,6 +68,7 @@ All transitions are decided in `PlayerStateTracker.Evaluate()` and applied in `P
 | KnockedBack | lower-priority state | Knockback timer ran out | `PlayerStateTracker.Evaluate`; `PlayerKnockback.Update` |
 | Idle / Walking / Running / Airborne / Flaring | Throwing | `CandyThrower.IsThrowing` (a throw succeeded; lasts `throwStateSeconds` 0.4 s) | `PlayerStateTracker.Evaluate` (3rd check); `CandyThrower.TryThrow` |
 | (none) | (no change) | Dropping a candy (G, `CandyThrower.TryDrop`) does **not** enter Throwing; the player stays in their current state | `CandyThrower.TryDrop` |
+| (none) | (no change) | Throw pressed while standing at a story note: the note opens (or closes) and **no candy is thrown**, so Throwing is not entered. Away from a note the press throws as always | `CandyThrower.Update` -> `StoryNote.TryInteract` -> `NoteReader.HandleInteract` |
 | Throwing | Flaring or locomotion | Throw window ran out | `PlayerStateTracker.Evaluate`; `CandyThrower.Update` |
 | Idle / Walking / Running / Airborne | Flaring | `LanternController.IsFlaring` (Flare held, lit, candle at least `minCandleToFlare` 5 to start) | `PlayerStateTracker.Evaluate` (4th check); `LanternController.Update` |
 | Flaring | locomotion | Flare released, or candle reached 0 | `PlayerStateTracker.Evaluate`; `LanternController.Update` |
@@ -83,6 +86,8 @@ All transitions are decided in `PlayerStateTracker.Evaluate()` and applied in `P
 `GhostAI` holds one `GhostState` and changes it only through `ChangeState(next)`, which raises `OnStateChanged(ghost, previous, next)` and the static `GhostAI.AnyStateChanged`. Each state has a `Tick…` method called from `Update()`.
 
 A ghost can hurt the player **only in Chase**. Tints: Drift and Return green, Notice yellow, Chase red, Repelled white, Distracted pink.
+
+The ghost's Animator Controller has one state per `GhostState` and one transition per row of the table below; `docs/ANIMATION.md` lists them side by side with this FSM.
 
 ```mermaid
 stateDiagram-v2
@@ -190,7 +195,7 @@ stateDiagram-v2
 | Mode | Time scale | Candle drain | Player movement and input | Cursor | Play time counts |
 |---|---|---|---|---|---|
 | Title | 0 | paused | off | free | no |
-| Playing | 1 | running | on (one frame after entering) | locked | yes |
+| Playing | 1 | running (paused while a story note is open) | on (one frame after entering) | locked | yes |
 | Paused | 0 | paused | off | free | no |
 | Extinguished | 1 | n/a (candle is 0) | input off; the movement script keeps running on zeroed input, so the player falls and lands | locked | yes |
 | Won | 0 | paused | off | free | no |

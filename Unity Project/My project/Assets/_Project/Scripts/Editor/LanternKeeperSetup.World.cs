@@ -1,11 +1,8 @@
-using TMPro;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
@@ -35,8 +32,7 @@ namespace LanternKeeper.EditorTools
             int ghostLayer = EnsureTagsAndLayers();
             EnsureFolder(PrefabsDir);
 
-            Material bodyMat = MakeMaterial("M_Ghost", new Color(0.35f, 1f, 0.45f, 0.7f), true);
-            Material headMat = MakeMaterial("M_GhostHead", new Color(0.85f, 1f, 0.9f, 0.5f), true);
+            EnsurePolishAssets(); // M_Ghost, the sheet mesh, the Animator Controller and the clips
 
             var root = new GameObject("Ghost");
 
@@ -62,11 +58,6 @@ namespace LanternKeeper.EditorTools
             trigger.height = 1.9f;
             trigger.center = new Vector3(0f, 0.95f, 0f);
 
-            GameObject bodyVisual = NewVisual(PrimitiveType.Capsule, "Body", root.transform,
-                new Vector3(0f, 0.8f, 0f), new Vector3(0.8f, 0.8f, 0.8f), bodyMat);
-            GameObject headVisual = NewVisual(PrimitiveType.Sphere, "Head", root.transform,
-                new Vector3(0f, 1.75f, 0f), Vector3.one * 0.65f, headMat);
-
             var glow = new GameObject("Glow");
             glow.transform.SetParent(root.transform, false);
             glow.transform.localPosition = new Vector3(0f, 1.2f, 0f);
@@ -77,11 +68,18 @@ namespace LanternKeeper.EditorTools
             glowLight.range = 4f;
             glowLight.shadows = LightShadows.None;
 
+            // Step 5: a sheet ghost with a waving hem, animated on a Visual child so the agent
+            // and the trigger on the root never move. Only the sheet is tinted; the face stays dark.
+            Renderer sheet = BuildGhostVisual(root, glowLight, out Animator animator);
+
             foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = ghostLayer;
 
-            var ghost = root.AddComponent<GhostAI>();
-            SetRefArray(ghost, "tintRenderers", bodyVisual.GetComponent<Renderer>(), headVisual.GetComponent<Renderer>());
+            // GhostVisualFx requires GhostAI, so Unity has already added it.
+            var ghost = GetOrAdd<GhostAI>(root);
+            SetRefArray(ghost, "tintRenderers", sheet);
+            SetRef(ghost, "animator", animator);
             SetRef(ghost, "glowLight", glowLight);
+            WireGhostAudio(ghost);
 
             SavePrefab(root, GhostPrefabPath);
             AssetDatabase.SaveAssets();
@@ -94,15 +92,16 @@ namespace LanternKeeper.EditorTools
             EnsureTagsAndLayers();
             EnsureFolder(PrefabsDir);
 
-            Material plateBaseMat = MakeMaterial("M_PlateBase", new Color(0.22f, 0.22f, 0.25f));
+            EnsurePolishAssets();
+            Material plateBaseMat = MakeMaterial("M_PlateBase", new Color(0.3f, 0.29f, 0.35f));
             Material platePadMat = MakeMaterial("M_PlatePad", new Color(0.55f, 0.4f, 0.2f), false, new Color(0.12f, 0.09f, 0.04f));
             Material gateMat = MakeMaterial("M_GateDoor", new Color(0.3f, 0.22f, 0.4f), false, new Color(0.08f, 0.05f, 0.12f));
-            Material frameMat = MakeMaterial("M_GateFrame", new Color(0.14f, 0.12f, 0.11f));
-            Material doorMat = MakeMaterial("M_FarmhouseDoor", new Color(0.5f, 0.28f, 0.12f), false, new Color(0.25f, 0.13f, 0.04f));
+            Material frameMat = MakeMaterial("M_GateFrame", new Color(0.3f, 0.28f, 0.36f));
+            Material doorMat = MakeMaterial("M_FarmhouseDoor", new Color(0.62f, 0.34f, 0.12f), false, new Color(0.7f, 0.34f, 0.08f));
             Material bowlMat = MakeMaterial("M_CandyBowl", new Color(1f, 0.5f, 0.1f), false, new Color(0.9f, 0.4f, 0.05f));
             Material lampPostMat = MakeMaterial("M_LampPost", new Color(0.12f, 0.1f, 0.09f));
             Material lampGlowMat = MakeMaterial("M_LampGlow", new Color(1f, 0.7f, 0.3f), false, new Color(3f, 1.8f, 0.6f));
-            MakeMaterial("M_Wall", new Color(0.13f, 0.14f, 0.18f));
+            MakeMaterial("M_Wall", new Color(0.21f, 0.2f, 0.28f));
 
             // Pressure plate: thin base you can walk over, pad that sinks and changes colour.
             {
@@ -114,6 +113,7 @@ namespace LanternKeeper.EditorTools
                 var plate = root.AddComponent<PressurePlate>();
                 SetRef(plate, "pad", pad.transform);
                 SetRef(plate, "padRenderer", pad.GetComponent<Renderer>());
+                PolishPressurePlate(root, pad);
                 SavePrefab(root, PressurePlatePrefabPath);
             }
 
@@ -126,7 +126,7 @@ namespace LanternKeeper.EditorTools
                     new Vector3(0.4f, 3.4f, 0.5f), frameMat, true);
                 GameObject right = NewVisual(PrimitiveType.Cube, "Pillar R", frame.transform, new Vector3(1.7f, 1.7f, 0f),
                     new Vector3(0.4f, 3.4f, 0.5f), frameMat, true);
-                NewVisual(PrimitiveType.Cube, "Beam", frame.transform, new Vector3(0f, 3.6f, 0f),
+                GameObject beam = NewVisual(PrimitiveType.Cube, "Beam", frame.transform, new Vector3(0f, 3.6f, 0f),
                     new Vector3(3.8f, 0.4f, 0.5f), frameMat, true);
                 AddCarvingObstacle(left, true);
                 AddCarvingObstacle(right, true);
@@ -141,6 +141,7 @@ namespace LanternKeeper.EditorTools
 
                 var gate = root.AddComponent<Gate>();
                 SetRef(gate, "door", door.transform);
+                PolishGate(root, door, beam);
                 SavePrefab(root, GatePrefabPath);
             }
 
@@ -168,7 +169,7 @@ namespace LanternKeeper.EditorTools
                 SetFloat(reveal, "radius", 5f);
                 SetRef(reveal, "linkedLight", light);
 
-                NewVisual(PrimitiveType.Cube, "Lantern (unlit)", lamp.transform, Vector3.zero, Vector3.one * 0.34f, lampPostMat);
+                GameObject unlit = NewVisual(PrimitiveType.Cube, "Lantern (unlit)", lamp.transform, Vector3.zero, Vector3.one * 0.34f, lampPostMat);
                 GameObject glow = NewVisual(PrimitiveType.Sphere, "Lantern (lit)", lamp.transform, Vector3.zero,
                     Vector3.one * 0.5f, lampGlowMat);
 
@@ -181,6 +182,8 @@ namespace LanternKeeper.EditorTools
                 SetRef(checkpoint, "lampLight", light);
                 SetRef(checkpoint, "revealLight", reveal);
                 SetRef(checkpoint, "litVisual", glow);
+                SetClip(checkpoint, "litClip", "SFX/checkpoint_lit");
+                PolishCheckpoint(unlit, glow, light);
                 SavePrefab(root, CheckpointPrefabPath);
             }
 
@@ -194,7 +197,7 @@ namespace LanternKeeper.EditorTools
             {
                 var root = new GameObject("TutorialTrigger");
                 AddTriggerBox(root, new Vector3(0f, 1.5f, 0f), new Vector3(8f, 3f, 1f));
-                root.AddComponent<TutorialTrigger>();
+                SetClip(root.AddComponent<TutorialTrigger>(), "shownClip", "SFX/prompt_chime");
                 SavePrefab(root, TutorialTriggerPrefabPath);
             }
 
@@ -202,7 +205,7 @@ namespace LanternKeeper.EditorTools
             {
                 var root = new GameObject("GoalTrigger");
                 AddTriggerBox(root, new Vector3(0f, 1.3f, -0.9f), new Vector3(2.6f, 2.6f, 1.6f));
-                NewVisual(PrimitiveType.Cube, "Door", root.transform, new Vector3(0f, 1.2f, 0f),
+                GameObject goalDoor = NewVisual(PrimitiveType.Cube, "Door", root.transform, new Vector3(0f, 1.2f, 0f),
                     new Vector3(1.4f, 2.4f, 0.2f), doorMat, true);
                 NewVisual(PrimitiveType.Cube, "Frame", root.transform, new Vector3(0f, 1.3f, 0.15f),
                     new Vector3(2f, 2.8f, 0.2f), frameMat, true);
@@ -216,6 +219,7 @@ namespace LanternKeeper.EditorTools
                 light.range = 7f;
                 light.shadows = LightShadows.None;
                 root.AddComponent<GoalTrigger>();
+                PolishGoal(root, goalDoor);
                 SavePrefab(root, GoalTriggerPrefabPath);
             }
 
@@ -228,9 +232,10 @@ namespace LanternKeeper.EditorTools
                 trigger.center = new Vector3(0f, 0.7f, 0f);
                 NewVisual(PrimitiveType.Cylinder, "Stand", root.transform, new Vector3(0f, 0.35f, 0f),
                     new Vector3(0.3f, 0.35f, 0.3f), lampPostMat, true);
-                NewVisual(PrimitiveType.Sphere, "Bowl", root.transform, new Vector3(0f, 0.8f, 0f),
+                GameObject dish = NewVisual(PrimitiveType.Sphere, "Bowl", root.transform, new Vector3(0f, 0.8f, 0f),
                     new Vector3(0.8f, 0.35f, 0.8f), bowlMat);
                 root.AddComponent<CandyBowl>();
+                PolishCandyBowl(root, dish);
                 SavePrefab(root, CandyBowlPrefabPath);
             }
 
@@ -241,90 +246,8 @@ namespace LanternKeeper.EditorTools
             Debug.Log("[Lantern Keeper] World prefabs created.");
         }
 
-        // ------------------------------------------------------------------ menus (Title / Pause / Win)
-
-        private static void CreateGameMenusPrefab()
-        {
-            var root = new GameObject("GameMenus", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            var canvas = root.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 20; // above the HUD
-            var scaler = root.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            // Buttons and the slider need an EventSystem; it travels with the prefab.
-            var eventSystem = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
-            eventSystem.transform.SetParent(root.transform, false);
-
-            // Title
-            RectTransform title = NewPanel("TitlePanel", root.transform, new Color(0.01f, 0.012f, 0.03f, 0.88f));
-            NewText(NewAnchored("GameName", title, 0.80f, new Vector2(1600f, 140f)), "LANTERN KEEPER", 110f, TextAlignmentOptions.Center)
-                .color = new Color(1f, 0.62f, 0.2f);
-            NewText(NewAnchored("Tagline", title, 0.69f, new Vector2(1600f, 60f)),
-                "Cross the haunted patch before your candle burns out.", 34f, TextAlignmentOptions.Center);
-            TextMeshProUGUI controls = NewText(NewAnchored("Controls", title, 0.42f, new Vector2(1100f, 400f)), "", 32f, TextAlignmentOptions.Center);
-            NewText(NewAnchored("PressAnyKey", title, 0.12f, new Vector2(1600f, 60f)),
-                "Press any key to start", 40f, TextAlignmentOptions.Center).color = new Color(1f, 0.85f, 0.5f);
-
-            // Pause
-            RectTransform pause = NewPanel("PausePanel", root.transform, new Color(0f, 0f, 0f, 0.8f));
-            NewText(NewAnchored("PauseHeading", pause, 0.86f, new Vector2(1200f, 110f)), "Paused", 84f, TextAlignmentOptions.Center);
-            Button resume = NewButton("ResumeButton", pause, 0.72f, "Resume");
-            Button restart = NewButton("RestartButton", pause, 0.63f, "Restart");
-            Button quit = NewButton("QuitButton", pause, 0.54f, "Quit");
-            NewText(NewAnchored("SensitivityLabel", pause, 0.445f, new Vector2(900f, 50f)),
-                "Camera sensitivity", 30f, TextAlignmentOptions.Center);
-            Slider slider = NewSlider("SensitivitySlider", pause, 0.395f);
-            RectTransform valueRect = NewAnchored("SensitivityValue", pause, 0.395f, new Vector2(120f, 50f));
-            valueRect.anchoredPosition = new Vector2(320f, 0f);
-            TextMeshProUGUI sensitivityValue = NewText(valueRect, "1.0", 30f, TextAlignmentOptions.Left);
-            NewText(NewAnchored("PauseHint", pause, 0.32f, new Vector2(1400f, 50f)),
-                "Esc resumes  -  arrow keys and Enter work in this menu", 26f, TextAlignmentOptions.Center)
-                .color = new Color(1f, 1f, 1f, 0.7f);
-            TextMeshProUGUI pauseSavePath = NewText(NewAnchored("PauseSavePath", pause, 0.2f, new Vector2(1800f, 80f)), "", 22f, TextAlignmentOptions.Center);
-            pauseSavePath.color = new Color(1f, 1f, 1f, 0.75f);
-            Button pauseOpenFolder = NewButton("PauseOpenFolderButton", pause, 0.09f, "Open playtest folder");
-            ((RectTransform)pauseOpenFolder.transform).sizeDelta = new Vector2(520f, 70f);
-
-            // Win
-            RectTransform win = NewPanel("WinPanel", root.transform, new Color(0.02f, 0.015f, 0f, 0.88f));
-            NewText(NewAnchored("WinHeading", win, 0.82f, new Vector2(1700f, 110f)), "You reached the farmhouse!", 78f, TextAlignmentOptions.Center)
-                .color = new Color(1f, 0.75f, 0.3f);
-            TextMeshProUGUI stats = NewText(NewAnchored("Stats", win, 0.6f, new Vector2(1200f, 240f)), "", 42f, TextAlignmentOptions.Center);
-            Button winRestart = NewButton("PlayAgainButton", win, 0.41f, "Play again");
-            NewText(NewAnchored("WinHint", win, 0.32f, new Vector2(1400f, 50f)),
-                "Press R to play again", 30f, TextAlignmentOptions.Center).color = new Color(1f, 1f, 1f, 0.7f);
-            TextMeshProUGUI winSavePath = NewText(NewAnchored("WinSavePath", win, 0.2f, new Vector2(1800f, 80f)), "", 22f, TextAlignmentOptions.Center);
-            winSavePath.color = new Color(1f, 1f, 1f, 0.75f);
-            Button winOpenFolder = NewButton("WinOpenFolderButton", win, 0.09f, "Open playtest folder");
-            ((RectTransform)winOpenFolder.transform).sizeDelta = new Vector2(520f, 70f);
-
-            // GameMenus shows the right panel in Start; saved hidden so nothing flashes.
-            title.gameObject.SetActive(false);
-            pause.gameObject.SetActive(false);
-            win.gameObject.SetActive(false);
-
-            var menus = root.AddComponent<GameMenus>();
-            SetRef(menus, "titlePanel", title.gameObject);
-            SetRef(menus, "pausePanel", pause.gameObject);
-            SetRef(menus, "winPanel", win.gameObject);
-            SetRef(menus, "controlsLabel", controls);
-            SetRef(menus, "resumeButton", resume);
-            SetRef(menus, "restartButton", restart);
-            SetRef(menus, "quitButton", quit);
-            SetRef(menus, "sensitivitySlider", slider);
-            SetRef(menus, "sensitivityValueLabel", sensitivityValue);
-            SetRef(menus, "winStatsLabel", stats);
-            SetRef(menus, "winRestartButton", winRestart);
-            SetRef(menus, "pauseSavePathLabel", pauseSavePath);
-            SetRef(menus, "pauseOpenFolderButton", pauseOpenFolder);
-            SetRef(menus, "winSavePathLabel", winSavePath);
-            SetRef(menus, "winOpenFolderButton", winOpenFolder);
-
-            SavePrefab(root, GameMenusPrefabPath);
-        }
+        // ------------------------------------------------------------------ menu helpers
+        // CreateGameMenusPrefab, NewButton and NewSlider are in LanternKeeperSetup.UI.cs.
 
         private static RectTransform NewPanel(string name, Transform parent, Color background)
         {
@@ -338,59 +261,6 @@ namespace LanternKeeper.EditorTools
         {
             var anchor = new Vector2(0.5f, height);
             return NewRect(name, parent, anchor, anchor, new Vector2(0.5f, 0.5f), Vector2.zero, size);
-        }
-
-        private static Button NewButton(string name, Transform parent, float height, string label)
-        {
-            RectTransform rect = NewAnchored(name, parent, height, new Vector2(420f, 80f));
-            var image = rect.gameObject.AddComponent<Image>();
-            image.color = Color.white;
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-
-            // Strong highlight and selected tints, so the keyboard selection is easy to see.
-            ColorBlock colors = button.colors;
-            colors.normalColor = new Color(0.22f, 0.2f, 0.28f);
-            colors.highlightedColor = new Color(0.85f, 0.5f, 0.1f);
-            colors.selectedColor = new Color(0.85f, 0.5f, 0.1f);
-            colors.pressedColor = new Color(1f, 0.75f, 0.35f);
-            colors.fadeDuration = 0.05f;
-            button.colors = colors;
-
-            // Every object in the prefab needs its own name: when the prefab is regenerated Unity
-            // matches old and new objects by name, and duplicates would get new file IDs each time.
-            RectTransform textRect = NewRect(name + "Label", rect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            NewText(textRect, label, 36f, TextAlignmentOptions.Center);
-            return button;
-        }
-
-        private static Slider NewSlider(string name, Transform parent, float height)
-        {
-            GameObject go = DefaultControls.CreateSlider(new DefaultControls.Resources());
-            go.name = name;
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            var anchor = new Vector2(0.5f, height);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(480f, 30f);
-
-            // No sprites in a code-built slider, so tell the parts apart by colour.
-            TintChild(go.transform, "Background", new Color(0.22f, 0.2f, 0.28f));
-            TintChild(go.transform, "Fill Area/Fill", new Color(0.85f, 0.5f, 0.1f));
-            TintChild(go.transform, "Handle Slide Area/Handle", Color.white);
-
-            var slider = go.GetComponent<Slider>();
-            slider.minValue = 0.1f;
-            slider.maxValue = 3f;
-            slider.value = 1f;
-            ColorBlock colors = slider.colors;
-            colors.highlightedColor = new Color(1f, 0.85f, 0.5f);
-            colors.selectedColor = new Color(1f, 0.75f, 0.35f);
-            slider.colors = colors;
-            return slider;
         }
 
         private static void TintChild(Transform root, string path, Color color)
@@ -495,6 +365,12 @@ namespace LanternKeeper.EditorTools
             manager.AddComponent<DebugOverlay>();
             manager.AddComponent<PlaytestLogger>();
             PlacePrefab(menusPrefab, "GameMenus", null, Vector3.zero);
+
+            // Step 5: sound for the sandbox too, so prefab audio can be tried without the level.
+            WireGameManagerAudio(gameManager);
+            Transform audio = new GameObject("Audio and Fx").transform;
+            CreateMusicDirector(audio);
+            CreatePickupSparkles(audio);
 
             return BakeSandboxNavMesh(environment);
         }

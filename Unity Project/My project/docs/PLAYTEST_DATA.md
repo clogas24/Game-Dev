@@ -52,7 +52,7 @@ All times are **play time** in seconds: `GameManager.PlayTime`, which runs while
 | `tester_id` | Generated id, one per launch of the game | Match the row to the observation sheet and survey |
 | `session` | File name prefix (`tester_id`, or `tester_id_2`…) | A `_2` means this tester restarted: read the earlier session too |
 | `date`, `time_started` | Local date and time the session began | Order sessions; match to notes |
-| `build_version` | `Application.version` (0.1.0 for Playtest 1) | Keep playtests of different builds apart. Bump the version for each tagged build |
+| `build_version` | `Application.version` (0.1.0 for Playtest 1, 0.2.0 for the Step 5 polish build) | Keep playtests of different builds apart. Bump the version for each tagged build |
 | `completed` | `yes` if the farmhouse door was reached | Completion rate. Fewer than about 2 in 3 finishing means the level is too hard or too unclear somewhere |
 | `end_reason` | `completed`, `pause_menu_quit`, `application_quit`, `restart`, or `in_progress` (written at a pause; if it is still there, the game was killed) | Why a run stopped. A quit in the middle of a section is a strong signal |
 | `last_section` | Id of the last section entered | Where an unfinished run stopped. A cluster of quits in one section is the first thing to fix |
@@ -68,6 +68,7 @@ All times are **play time** in seconds: `GameManager.PlayTime`, which runs while
 | `final_candle_pct` | Candle left when the session ended | For finished runs the design target is roughly 20–40%. Mostly above 60: remove a stub. Mostly near 0, or many `drained` deaths in S5: add one |
 | `chases` | Times any ghost entered Chase | Tension. Near 0: ghosts are too easy to avoid. Dozens: the player cannot get away, or is not trying to |
 | `pauses` | Times the game was paused | Several pauses in a row usually means looking for controls or changing sensitivity: ask in the survey |
+| `notes_read` | Times a story note was opened (5 notes in the level; opening one twice counts twice). Added in 0.2.0, as the last column | Whether the story is being found at all. 0 across most testers: the signposts are not noticed, or the prompt is not understood |
 
 A section's time, deaths and hits go to the **last section entered**. If a player dies early in S3 and respawns at the S2 checkpoint, the time spent crossing the S2 bridge again counts as S3. That is deliberate: it is time S3 cost them.
 
@@ -93,6 +94,7 @@ Columns: `time_s`, `section`, `event`, `detail`.
 | `gate_opened`, `gate_closed` | Gate name | Time from `section_entered` (or the checkpoint) to `gate_opened` is the puzzle's solve time. `gate_opened` then `gate_closed` then `gate_opened` on gate one means the player did not get through the first time |
 | `ghost_notice`, `ghost_chase` | Ghost name | Where the player is seen. Notice without chase means they backed off in time: good readability |
 | `tutorial_shown` | Tutorial id (`T1_MoveJumpSprint` … `T6_Plate`) | Check the gap between a prompt and the first use of that ability |
+| `note_read` | Note id (`Note1_Lanterns`, `Note2_SpiritBridge`, `Note3_Farmhands`, `Note4_Candy`, `Note5_Home`) | Which notes are found. The candle is paused while a note is open, so a long gap after this row is reading time, not a stall |
 | `paused`, `resumed` | – | Where players stop |
 | `level_completed` | `time_s=…;candle_pct=…` | End marker for a finished run |
 | `quit` | `pause_menu_quit` or `application_quit` | End marker for a quit |

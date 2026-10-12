@@ -1,6 +1,8 @@
-# Level 01: Pumpkin Patch (greybox)
+# Level 01: Pumpkin Patch
 
 Scene: `Assets/_Project/Scenes/Level01_PumpkinPatch.unity`. Built once by **Lantern Keeper > Create Level01 Greybox** and tuned by hand from then on. This page describes the level as generated for Playtest 1 (`v0.1-playtest1`); update it when the layout changes.
+
+Step 5 dressed the level without changing its layout: everything on this page about positions, sizes, ghosts, pacing and the candle budget still holds. [Dressing](#dressing-step-5) at the end says what each section looks like now.
 
 - The level runs north, along **+Z**. Ground tops are at y = 0.
 - Sections 1–2 are a strip 14 m wide (x −7..7). Sections 3–5 are 28 m wide (x −14..14).
@@ -9,20 +11,22 @@ Scene: `Assets/_Project/Scenes/Level01_PumpkinPatch.unity`. Built once by **Lant
 
 ## Colour code
 
-| Colour | Meaning | Material |
-|---|---|---|
-| Dark grey | Safe ground | `M_LK_Ground` |
-| Cyan, see-through | Spirit platform (only exists in light) | `M_SpiritPlatform` |
-| Dark red | Deadly pit floor, and a strip along each pit edge | `M_LK_Hazard` |
-| Dark blue | Shallow water: a fall costs a walk back up a ramp, not a life | `M_LK_Shallow` |
-| Brown | Things to jump over or walk round (crates, fence, rails) | `M_LK_Obstacle` |
-| Light grey | Gravestones: cover from ghosts | `M_LK_Stone` |
-| Olive | Corn walls and hedges | `M_LK_Corn` |
-| Blue-grey | Solid walls, crypts, the farmhouse | `M_Wall` |
-| Bright yellow | Pressure plate (turns green while pressed) | plate `Idle Color` |
-| Bright pink | Candy bowl | `M_LK_CandyBowl` |
-| Bright green disc | Checkpoint (porch lantern) | `M_LK_Checkpoint` |
-| Warm orange | The goal: farmhouse door, its porch and a beacon light | `M_LK_Goal` |
+The code survives the art pass. Where a model now stands in for a greybox block, the "Now" column says what it is; the block is still there underneath, undrawn, with its collider.
+
+| Colour | Meaning | Material | Now (Step 5) |
+|---|---|---|---|
+| Dark grey | Safe ground | `M_LK_Ground` | Dark, slightly green earth: still the darkest neutral on screen |
+| Cyan, see-through | Spirit platform (only exists in light) | `M_SpiritPlatform` | Cyan with a bright pulsing rim (the only cyan in the level) |
+| Dark red | Deadly pit floor, and a strip along each pit edge | `M_LK_Hazard` | The same, glowing a little more; dark earth walls round the pit |
+| Dark blue | Shallow water: a fall costs a walk back up a ramp, not a life | `M_LK_Shallow` | A see-through blue water surface 0.55 m down, over the same floor |
+| Brown | Things to jump over or walk round (crates, fence, rails) | `M_LK_Obstacle` | Crates, a rail fence, hay-bale walls (S1); hedges (S4 rails) |
+| Light grey | Gravestones: cover from ghosts | `M_LK_Stone` | Kenney gravestones, each stretched to its block's width and height |
+| Olive | Corn walls and hedges | `M_LK_Corn` | Corn: the block stays as the dark heart of the row, with stalks on it. Hedges in the S4 corridor |
+| Blue-grey | Solid walls, crypts, the farmhouse | `M_Wall` | Stone walls with iron railings; the crypt blocks are raised burial terraces; the farmhouse is a house |
+| Bright yellow | Pressure plate (turns green while pressed) | plate `Idle Color` | The same, with a rune that glows while pressed |
+| Bright pink | Candy bowl | `M_LK_CandyBowl` | A pink dish heaped with sweets |
+| Bright green disc | Checkpoint (porch lantern) | `M_LK_Checkpoint` | The same disc under a jack-o'-lantern on a post; its face lights when the checkpoint does |
+| Warm orange | The goal: farmhouse door, its porch and a beacon light | `M_LK_Goal` | The same, under a porch roof with a lit gable window |
 
 ## Map
 
@@ -226,3 +230,21 @@ Each extra second of flare costs 3.5, each ghost hit 20. A player who skips the 
 9. **Brightness and readability.** Lighting was set without looking at it (ambient and moon are a little brighter than the sandbox). Check that the colour code reads, and that spirit platforms are still clearly invisible in the dark.
 10. **Greybox scale.** Corridors, the 28 m yards and the 3 m walls have not been seen through the game camera. Watch for camera clipping in the 3.2 m corridor and the maze.
 11. **Checkpoint triggers are large** (up to 4 m radius) so they cannot be walked past. A checkpoint may light a moment before the player reaches the lantern.
+
+## Dressing (Step 5)
+
+Built by **Lantern Keeper > Dress Level01** under one root object, `Dressing`. No collider was added, moved or resized, the NavMesh was not re-baked, and nothing decorative with a collider stands anywhere. Decoration inside the playable strip is either on top of something solid (pumpkins on a wall), against the boundary, or small enough to walk through (grass, stepping stones). `docs/SETUP_WORLD.md` section 9 lists exactly what the menu item changes.
+
+| Section | What it looks like now |
+|---|---|
+| **S1 Pumpkin Patch** | The crate row and the candle nook are crates; the 0.8 m fence is a rail fence; the S-bend's two walls are hay bales two high with pumpkins and jack-o'-lanterns along the top. Pumpkins against the fence line and a whole patch beyond it, three scarecrows watching from outside, grass underfoot. Fireflies and drifting leaves |
+| **S2 Spirit Bridge** | Blue water in the creek and the pond, running on past the banks; reeds in the shallows; lily pads on the pond (kept away from the bridges); stepping stones on the banks leading from one bridge to the next; the porch lamp is a caged lantern on a post. The deadly pit has dark earth walls and keeps its red edges. Fireflies. Water sound at the creek and the pond |
+| **S3 Graveyard** | Fifteen Kenney gravestones over the fifteen cover blocks; the wall has iron railings, gate posts and two jack-o'-lanterns; the two crypt blocks are raised terraces with pilasters, a sealed door, railings, crypts and stones on top; bare trees against the fence; more graves beyond it. Ground mist. A faint choir; water at the trench |
+| **S4 Candy Porch → Cemetery Gate** | A boarded porch with a jack-o'-lantern at each corner and a house beside it, windows lit; the porch rails are hedges topped with jack-o'-lanterns; candy bowls heaped with sweets; the three walls carry iron railings; the two gates are iron bars between capped stone pillars; the corridor is hedged; bales and pumpkins along the yard edges |
+| **S5 Cornfield → Farmhouse** | Corn stalks on every corn wall and a dark field beyond the fence; the last pit as in S2; the farmhouse is a house with lit windows, a porch roof over the goal door, a lit gable window as the beacon seen from across the pit, and a flame on a plinth either side of the steps. Drifting leaves |
+
+**Lighting.** Moonlight from over the player's left shoulder (it lights the player's back and whatever faces the camera), flat blue-purple ambient, thin exponential fog (density 0.016) in the horizon's colour, a night sky with stars. Post-processing: bloom, vignette, split toning toward purple shadows and warm highlights, light film grain.
+
+**Story notes.** Five signposts, each with a small warm light, at (-5.5, 6.4) in S1, (5.4, 61) in S2, (-7.6, 119.6) in S3, (-3.9, 200.8) in S4 and (-5.2, 376.2) in S5. All are beside the path and none has a collider. The nearest ghost patrol to any of them is 21 m away (the S3 note and ghost A), three times the notice range. Reading one pauses the candle, so a note is also a place to stop and think; that is the only way the notes touch the candle budget above, and only in the player's favour.
+
+**Risk 9 (brightness and readability)** in the list above was written before anyone had looked at the lighting. It has now been looked at, in frames rendered from the game camera in every section: ground, water, pits, platforms, plates, bowls, checkpoints and the goal are all told apart at a glance, with and without the lantern nearby. It still needs a tester's eyes on a different monitor.

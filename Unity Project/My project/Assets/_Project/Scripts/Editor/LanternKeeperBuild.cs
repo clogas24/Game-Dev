@@ -22,11 +22,11 @@ namespace LanternKeeper.EditorTools
         private const string Level01ScenePath = "Assets/_Project/Scenes/Level01_PumpkinPatch.unity";
         private const string CompanyName = "Carson Logas";
         private const string ProductName = "Lantern Keeper";
-        private const string Version = "0.1.0";
+        private const string Version = "0.2.0";
         private const string PlaytestRoot = "Builds/Playtest";
-        private const string WindowsFolder = PlaytestRoot + "/LanternKeeper_Win_v0.1";
+        private const string WindowsFolder = PlaytestRoot + "/LanternKeeper_Win_v0.2";
         private const string WindowsExe = WindowsFolder + "/LanternKeeper.exe";
-        private const string WindowsZip = PlaytestRoot + "/LanternKeeper_Win_v0.1.zip";
+        private const string WindowsZip = PlaytestRoot + "/LanternKeeper_Win_v0.2.zip";
         private const string TestRoot = "Builds/Test";
 
         [MenuItem("Lantern Keeper/Build Playtest (Windows)", priority = 60)]
