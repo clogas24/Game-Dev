@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace LanternKeeper
 {
     /// <summary>
-    /// In-game HUD: candle meter (a bar that shifts orange to red and pulses when low), candy
+    /// In-game HUD: candle meter (a candle that burns down, shifts orange to red and pulses when low), candy
     /// count, and a centre prompt that fades in and out.
     /// Prompt text may contain {flare}, {throw} and {jump}; they are replaced with the name of
     /// the control bound to that action for the control scheme the player last used, read from
@@ -25,6 +25,8 @@ namespace LanternKeeper
         private RectTransform candleFill;
         [SerializeField, Tooltip("Image on the fill bar; tinted by candle level.")]
         private Image candleFillImage;
+        [SerializeField, Tooltip("Flame drawn at the top of the candle meter; hidden while the lantern is out. Optional.")]
+        private GameObject candleFlame;
         [SerializeField, Tooltip("Text showing the candle percentage.")]
         private TMP_Text candleLabel;
         [SerializeField, Tooltip("Bar colour at full candle.")]
@@ -164,6 +166,7 @@ namespace LanternKeeper
                 candleFill.anchorMax = max;
             }
             if (candleFillImage != null) candleFillImage.color = BarColor(normalized);
+            if (candleFlame != null && candleFlame.activeSelf != normalized > 0f) candleFlame.SetActive(normalized > 0f);
 
             int percent = Mathf.CeilToInt(normalized * 100f);
             if (candleLabel != null && percent != _shownPercent)

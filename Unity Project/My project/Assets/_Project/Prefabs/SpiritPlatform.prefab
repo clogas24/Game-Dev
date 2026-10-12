@@ -136,6 +136,6 @@ MonoBehaviour:
   shimmerWhenHidden: 0
   shimmerAlpha: 0.06
   shimmerSpeed: 0.6
-  appearClip: {fileID: 0}
-  vanishClip: {fileID: 0}
-  volume: 0.7
+  appearClip: {fileID: 8300000, guid: 40ebf78bbcf59b04b9ae2cdac7352596, type: 3}
+  vanishClip: {fileID: 8300000, guid: 6b506300798872343ae89944a38b1e7b, type: 3}
+  volume: 0.4

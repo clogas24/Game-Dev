@@ -16,7 +16,11 @@ A first playthrough takes about 6–9 minutes.
 
 ## Status
 
-**Playtest 1 build (v0.1.0, greybox).** The whole level is playable from the pumpkin patch to the farmhouse door, built from coloured blocks: dark grey is safe ground, cyan is a spirit platform, dark red is a deadly pit, dark blue is shallow water, yellow is a pressure plate, pink is a candy bowl, green marks a checkpoint and warm orange is the goal. There is no final art, animation polish or audio yet. Windows build only at this stage; macOS and Linux builds come with the release.
+**Polish build (v0.2.0).** The whole level is playable from the pumpkin patch to the farmhouse door, now with its art, animation, sound and music: a moonlit pumpkin patch, creek, graveyard, candy porch and cornfield; animated sheet ghosts that change colour and pose with what they are doing; a jack-o'-lantern the player raises to flare; music that turns tense while a ghost is after you; and five notes from the farm family to find along the way.
+
+The colours still mean what they meant in the greybox: glowing cyan is a spirit platform, a dull red glow is a deadly pit, blue is shallow water you can climb out of, yellow is a pressure plate (green while pressed), pink is a candy bowl, a green disc marks a checkpoint and warm orange is the goal.
+
+Windows build only at this stage; macOS and Linux builds come with the release. Assets and licenses are listed in `docs/CREDITS.md`.
 
 The build records anonymous play data (times, deaths, flares, candy) to CSV files on the tester's own machine for the playtests; nothing is sent anywhere. The pause and win screens show the folder.
 
@@ -34,11 +38,14 @@ Lantern Keeper is played with keyboard and mouse, and is fully playable on a lap
 | Sprint (hold) | Left Shift | — |
 | Flare lantern (hold) | F | Right mouse button |
 | Throw candy | E | Left click |
+| Read a note (when standing at one) | E | Left click |
 | Drop candy at your feet | G | — |
 | Pause | Esc | — |
 | Restart (on win screen) | R | — |
 
-Camera sensitivity can be adjusted from the pause menu.
+Standing at a signpost, the throw key reads the note instead of throwing; the prompt on screen says so. Your candle does not burn while you read.
+
+Camera sensitivity, music volume and sound volume can be adjusted from the pause menu.
 
 ### Playing on a laptop trackpad
 

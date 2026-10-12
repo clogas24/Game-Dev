@@ -10,7 +10,8 @@ namespace LanternKeeper
     /// <summary>
     /// Title, Pause and Win panels. Shows the panel that matches GameManager.Mode, builds the
     /// title's controls list from the real input bindings, wires the pause buttons, and ties the
-    /// sensitivity slider to KeyboardCameraLook.Sensitivity (saved in PlayerPrefs).
+    /// sensitivity slider to KeyboardCameraLook.Sensitivity (saved in PlayerPrefs). The music
+    /// and sound sliders set GameAudio.MusicVolume and GameAudio.SfxVolume (also saved).
     /// Menus work with the mouse and with the keyboard alone (arrows / WASD + Enter), because
     /// the first button of each panel is selected when it opens.
     /// The pause and win screens show where the playtest CSVs are saved and can open the folder.
@@ -44,6 +45,14 @@ namespace LanternKeeper
         private Slider sensitivitySlider;
         [SerializeField, Tooltip("Text showing the current sensitivity value.")]
         private TMP_Text sensitivityValueLabel;
+        [SerializeField, Tooltip("Music volume slider (0 to 1).")]
+        private Slider musicSlider;
+        [SerializeField, Tooltip("Text showing the music volume.")]
+        private TMP_Text musicValueLabel;
+        [SerializeField, Tooltip("Sound effect and ambience volume slider (0 to 1).")]
+        private Slider sfxSlider;
+        [SerializeField, Tooltip("Text showing the sound volume.")]
+        private TMP_Text sfxValueLabel;
 
         [Header("Win")]
         [SerializeField, Tooltip("Text filled with time, times extinguished and candle left.")]
@@ -88,6 +97,9 @@ namespace LanternKeeper
                 ShowSensitivity(saved);
                 sensitivitySlider.onValueChanged.AddListener(HandleSensitivityChanged);
             }
+
+            SetUpVolumeSlider(musicSlider, musicValueLabel, GameAudio.MusicVolume, HandleMusicChanged);
+            SetUpVolumeSlider(sfxSlider, sfxValueLabel, GameAudio.SfxVolume, HandleSfxChanged);
 
             if (controlsLabel != null) controlsLabel.text = BuildControlsText(candle);
 
@@ -170,6 +182,33 @@ namespace LanternKeeper
         private void ShowSensitivity(float value)
         {
             if (sensitivityValueLabel != null) sensitivityValueLabel.SetText("{0:1}", value);
+        }
+
+        private static void SetUpVolumeSlider(Slider slider, TMP_Text label, float saved, UnityEngine.Events.UnityAction<float> handler)
+        {
+            if (slider == null) return;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.SetValueWithoutNotify(saved);
+            ShowPercent(label, saved);
+            slider.onValueChanged.AddListener(handler);
+        }
+
+        private void HandleMusicChanged(float value)
+        {
+            GameAudio.MusicVolume = value;
+            ShowPercent(musicValueLabel, value);
+        }
+
+        private void HandleSfxChanged(float value)
+        {
+            GameAudio.SfxVolume = value;
+            ShowPercent(sfxValueLabel, value);
+        }
+
+        private static void ShowPercent(TMP_Text label, float value)
+        {
+            if (label != null) label.SetText("{0}%", Mathf.Round(value * 100f));
         }
 
         private string BuildWinText()

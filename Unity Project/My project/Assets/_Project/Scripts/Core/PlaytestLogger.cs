@@ -73,6 +73,7 @@ namespace LanternKeeper
         private int _candlePickups;
         private int _chases;
         private int _pauses;
+        private int _notesRead;
         private int _deaths;
         private int _hits;
 
@@ -142,6 +143,7 @@ namespace LanternKeeper
             GameEvents.TutorialShown += HandleTutorialShown;
             GameEvents.LevelCompleted += HandleLevelCompleted;
             GameEvents.QuitRequested += HandleQuitRequested;
+            GameEvents.NoteRead += HandleNoteRead;
             GhostAI.AnyStateChanged += HandleGhostStateChanged;
         }
 
@@ -157,6 +159,7 @@ namespace LanternKeeper
             GameEvents.TutorialShown -= HandleTutorialShown;
             GameEvents.LevelCompleted -= HandleLevelCompleted;
             GameEvents.QuitRequested -= HandleQuitRequested;
+            GameEvents.NoteRead -= HandleNoteRead;
             GhostAI.AnyStateChanged -= HandleGhostStateChanged;
         }
 
@@ -414,6 +417,12 @@ namespace LanternKeeper
 
         private void HandleTutorialShown(string tutorialId) => LogEvent("tutorial_shown", tutorialId);
 
+        private void HandleNoteRead(string noteId)
+        {
+            _notesRead++;
+            LogEvent("note_read", noteId);
+        }
+
         private void HandleLevelCompleted()
         {
             if (!_started) BeginSession();
@@ -514,6 +523,7 @@ namespace LanternKeeper
             Add("final_candle_pct", Num(candle));
             Add("chases", _chases.ToString(CultureInfo.InvariantCulture));
             Add("pauses", _pauses.ToString(CultureInfo.InvariantCulture));
+            Add("notes_read", _notesRead.ToString(CultureInfo.InvariantCulture));
 
             return header.Append('\n').Append(values).Append('\n').ToString();
         }

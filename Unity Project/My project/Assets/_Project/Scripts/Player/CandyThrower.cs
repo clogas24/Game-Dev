@@ -109,7 +109,11 @@ namespace LanternKeeper
             if (_cooldownTimer > 0f) _cooldownTimer -= dt;
             if (_throwStateTimer > 0f) _throwStateTimer -= dt;
 
-            if (_throwAction != null && _throwAction.WasPressedThisFrame()) TryThrow();
+            if (_throwAction != null && _throwAction.WasPressedThisFrame())
+            {
+                // Standing at a story note, the Throw key reads (or closes) it and no candy is thrown.
+                if (!StoryNote.TryInteract()) TryThrow();
+            }
             else if (_dropAction != null && _dropAction.WasPressedThisFrame()) TryDrop();
         }
 

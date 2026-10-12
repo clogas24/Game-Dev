@@ -29,6 +29,8 @@ namespace LanternKeeper
         public static event Action<Pickup> PickupCollected;
         /// <summary>The player chose Quit in the pause menu. Raised just before the application quits.</summary>
         public static event Action QuitRequested;
+        /// <summary>The player opened a story note. Argument: the note's id.</summary>
+        public static event Action<string> NoteRead;
 
         public static void RaisePlayerHit(Vector3 sourcePosition) => PlayerHit?.Invoke(sourcePosition);
         public static void RaiseCandyThrown(Vector3 origin) => CandyThrown?.Invoke(origin);
@@ -39,6 +41,7 @@ namespace LanternKeeper
         public static void RaiseTutorialShown(string tutorialId) => TutorialShown?.Invoke(tutorialId);
         public static void RaisePickupCollected(Pickup pickup) => PickupCollected?.Invoke(pickup);
         public static void RaiseQuitRequested() => QuitRequested?.Invoke();
+        public static void RaiseNoteRead(string noteId) => NoteRead?.Invoke(noteId);
 
         /// <summary>Drops every subscriber.</summary>
         public static void Clear()
@@ -52,6 +55,7 @@ namespace LanternKeeper
             TutorialShown = null;
             PickupCollected = null;
             QuitRequested = null;
+            NoteRead = null;
         }
 
         // Keeps stale subscribers out when "Enter Play Mode Options" skips the domain reload.

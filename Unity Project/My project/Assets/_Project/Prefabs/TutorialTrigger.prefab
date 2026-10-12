@@ -69,5 +69,5 @@ MonoBehaviour:
   tutorialId: Tutorial
   text: Hold {flare} to flare
   seconds: 5
-  shownClip: {fileID: 0}
+  shownClip: {fileID: 8300000, guid: dd174ea00d56a0d449204951159b35d7, type: 3}
   volume: 0.7

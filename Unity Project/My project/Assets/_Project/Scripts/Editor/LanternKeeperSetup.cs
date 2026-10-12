@@ -94,20 +94,6 @@ namespace LanternKeeper.EditorTools
                 SetFloat(reveal, "radius", 6f);
                 SetRef(reveal, "linkedLight", light);
 
-                Transform visual = lanternRoot.Find("LanternVisual");
-                if (visual == null)
-                {
-                    GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    sphere.name = "LanternVisual";
-                    Object.DestroyImmediate(sphere.GetComponent<Collider>());
-                    visual = sphere.transform;
-                    visual.SetParent(lanternRoot, false);
-                }
-                visual.localScale = Vector3.one * 0.22f;
-                var visualRenderer = visual.GetComponent<MeshRenderer>();
-                visualRenderer.sharedMaterial = MakeMaterial("M_Lantern", new Color(1f, 0.55f, 0.1f), false, new Color(2.5f, 1.2f, 0.25f));
-                visualRenderer.shadowCastingMode = ShadowCastingMode.Off;
-
                 Transform throwOrigin = GetOrCreateChild(player.transform, "ThrowOrigin", new Vector3(0.3f, 1.3f, 0.5f));
 
                 SetRef(lantern, "lanternLight", light);
@@ -118,6 +104,9 @@ namespace LanternKeeper.EditorTools
                 var candyPrefab = AssetDatabase.LoadAssetAtPath<Candy>(CandyPrefabPath);
                 if (candyPrefab != null) SetRef(thrower, "candyPrefab", candyPrefab);
                 else Debug.LogWarning("[Lantern Keeper] Candy prefab not found yet; run 'Create Placeholder Assets' and it will be wired into the Player prefab.");
+
+                // Step 5: the jack-o'-lantern prop, hand IK and throw motion, footsteps and every sound.
+                PolishPlayer(player, lanternRoot, light);
 
                 PrefabUtility.SaveAsPrefabAsset(player, PlayerPrefabPath, out bool saved);
                 Debug.Log(saved
@@ -141,12 +130,14 @@ namespace LanternKeeper.EditorTools
             Material candyMat = MakeMaterial("M_Candy", new Color(1f, 0.35f, 0.65f), false, new Color(0.6f, 0.15f, 0.35f));
             Material candleMat = MakeMaterial("M_CandlePickup", new Color(1f, 0.9f, 0.6f), false, new Color(1.2f, 0.9f, 0.4f));
             Material candyPickupMat = MakeMaterial("M_CandyPickup", new Color(0.65f, 0.3f, 1f), false, new Color(0.5f, 0.2f, 0.9f));
-            Material platformMat = MakeMaterial("M_SpiritPlatform", new Color(0.3f, 0.95f, 1f, 0.85f), true, new Color(0.1f, 0.5f, 0.6f));
             Material lampPostMat = MakeMaterial("M_LampPost", new Color(0.12f, 0.1f, 0.09f));
             Material lampGlowMat = MakeMaterial("M_LampGlow", new Color(1f, 0.7f, 0.3f), false, new Color(3f, 1.8f, 0.6f));
             MakeMaterial("M_Ground", new Color(0.16f, 0.2f, 0.13f));
             MakeMaterial("M_Pit", new Color(0.05f, 0.06f, 0.09f));
             MakeMaterial("M_TestDummy", new Color(0.3f, 0.9f, 0.4f));
+            // Step 5 materials (the spirit platform's rim-glow shader among them) and meshes.
+            EnsurePolishAssets();
+            Material platformMat = Mat("M_SpiritPlatform");
 
             // Candy: small sphere + Rigidbody + Candy.
             {
@@ -160,6 +151,7 @@ namespace LanternKeeper.EditorTools
                 body.angularDamping = 2f;
                 body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
                 go.AddComponent<Candy>();
+                PolishCandy(go);
                 SavePrefab(go, CandyPrefabPath);
             }
 
@@ -167,11 +159,13 @@ namespace LanternKeeper.EditorTools
             {
                 GameObject go = NewPickupRoot<CandlePickup>("CandlePickup", PrimitiveType.Cylinder,
                     new Vector3(0.18f, 0.22f, 0.18f), candleMat);
+                PolishCandlePickup(go);
                 SavePrefab(go, CandlePickupPrefabPath);
             }
             {
                 GameObject go = NewPickupRoot<CandyPickup>("CandyPickup", PrimitiveType.Cube,
                     new Vector3(0.3f, 0.3f, 0.3f), candyPickupMat);
+                PolishCandyPickup(go);
                 SavePrefab(go, CandyPickupPrefabPath);
             }
 
@@ -184,6 +178,7 @@ namespace LanternKeeper.EditorTools
                 renderer.sharedMaterial = platformMat;
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
                 go.AddComponent<SpiritPlatform>();
+                PolishSpiritPlatform(go);
                 SavePrefab(go, SpiritPlatformPrefabPath);
             }
 
@@ -218,6 +213,7 @@ namespace LanternKeeper.EditorTools
                 var glowRenderer = glow.GetComponent<MeshRenderer>();
                 glowRenderer.sharedMaterial = lampGlowMat;
                 glowRenderer.shadowCastingMode = ShadowCastingMode.Off;
+                PolishPorchLamp(go);
                 SavePrefab(go, PorchLampPrefabPath);
             }
 
@@ -421,56 +417,8 @@ namespace LanternKeeper.EditorTools
             };
         }
 
-        // ------------------------------------------------------------------ HUD
-
-        private static void CreateHudPrefab()
-        {
-            var root = new GameObject("HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
-            var canvas = root.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10;
-            var scaler = root.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            // Candle bar, bottom-left.
-            RectTransform bar = NewRect("CandleBar", root.transform, Vector2.zero, Vector2.zero, Vector2.zero,
-                new Vector2(40f, 40f), new Vector2(420f, 40f));
-            bar.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
-
-            RectTransform fill = NewRect("Fill", bar, Vector2.zero, Vector2.one, new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero);
-            fill.offsetMin = new Vector2(4f, 4f);
-            fill.offsetMax = new Vector2(-4f, -4f);
-            var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.color = new Color(1f, 0.6f, 0.1f);
-            fillImage.raycastTarget = false;
-
-            RectTransform candleLabelRect = NewRect("CandleLabel", bar, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            TextMeshProUGUI candleLabel = NewText(candleLabelRect, "Candle 100%", 24f, TextAlignmentOptions.Center);
-
-            RectTransform candyRect = NewRect("CandyLabel", root.transform, Vector2.zero, Vector2.zero, Vector2.zero,
-                new Vector2(40f, 90f), new Vector2(420f, 40f));
-            TextMeshProUGUI candyLabel = NewText(candyRect, "Candy 0/5", 28f, TextAlignmentOptions.Left);
-
-            RectTransform promptRect = NewRect("Prompt", root.transform, new Vector2(0.5f, 0.28f), new Vector2(0.5f, 0.28f),
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500f, 140f));
-            var promptGroup = promptRect.gameObject.AddComponent<CanvasGroup>();
-            promptGroup.alpha = 0f;
-            promptGroup.interactable = false;
-            promptGroup.blocksRaycasts = false;
-            TextMeshProUGUI promptLabel = NewText(promptRect, "", 36f, TextAlignmentOptions.Center);
-
-            var hud = root.AddComponent<HUD>();
-            SetRef(hud, "candleFill", fill);
-            SetRef(hud, "candleFillImage", fillImage);
-            SetRef(hud, "candleLabel", candleLabel);
-            SetRef(hud, "candyLabel", candyLabel);
-            SetRef(hud, "promptLabel", promptLabel);
-            SetRef(hud, "promptGroup", promptGroup);
-
-            SavePrefab(root, HudPrefabPath);
-        }
+        // ------------------------------------------------------------------ UI helpers
+        // CreateHudPrefab is in LanternKeeperSetup.UI.cs.
 
         private static RectTransform NewRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
             Vector2 pivot, Vector2 anchoredPosition, Vector2 size)
@@ -495,6 +443,9 @@ namespace LanternKeeper.EditorTools
             label.color = Color.white;
             label.raycastTarget = false;
             label.textWrappingMode = TextWrappingModes.Normal;
+            // Lato (OFL) for body text; headings switch to the title font with AsTitle.
+            TMP_FontAsset body = BodyFont();
+            if (body != null) label.font = body;
             return label;
         }
 

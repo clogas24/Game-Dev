@@ -2,7 +2,7 @@
 
 Everything needed to run a Lantern Keeper playtest and turn it into rows in `docs/ITERATIONS.md`. Print one observation sheet and one survey per tester.
 
-- Build: `Builds/Playtest/LanternKeeper_Win_v0.1.zip` (made by **Lantern Keeper > Build Playtest (Windows)**).
+- Build: `Builds/Playtest/LanternKeeper_Win_v0.2.zip` (made by **Lantern Keeper > Build Playtest (Windows)**). This is the build with art, animation and audio; `v0.1` was the greybox.
 - Data: see `docs/PLAYTEST_DATA.md`. Design intent and estimates: `docs/LEVEL_DESIGN.md`.
 - Aim for 3–5 testers per playtest who have not seen the game. One session takes about 20 minutes: 2 to set up, up to 12 to play, 5 for the survey.
 
