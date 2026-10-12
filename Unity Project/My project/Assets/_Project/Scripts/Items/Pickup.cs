@@ -70,6 +70,7 @@ namespace LanternKeeper
             if (_collected || !TryCollect(player)) return;
             _collected = true;
             Sfx.Play2D(collectClip, volume);
+            GameEvents.RaisePickupCollected(this);
             Destroy(gameObject);
         }
     }

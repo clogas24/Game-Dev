@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -17,6 +18,7 @@ namespace LanternKeeper
     public class PressurePlate : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly List<PressurePlate> s_all = new List<PressurePlate>(8);
 
         [Header("Who can press it")]
         [SerializeField, Tooltip("The player presses this plate.")]
@@ -76,7 +78,12 @@ namespace LanternKeeper
         private float _emptyTime;
         private bool _pressed;
 
+        /// <summary>Every enabled plate. Used by GameManager (respawn reset) and the playtest logger.</summary>
+        public static IReadOnlyList<PressurePlate> All => s_all;
+
         public bool IsPressed => _pressed;
+        /// <summary>True for a latching plate that has been pressed: it stays down for good.</summary>
+        public bool IsLatched => latch && _pressed;
         public UnityEvent OnPressed => onPressed;
         public UnityEvent OnReleased => onReleased;
         /// <summary>Raised when the pressed state changes. Arguments: plate, pressed.</summary>
@@ -88,6 +95,23 @@ namespace LanternKeeper
             if (pad != null) _padRest = pad.localPosition;
             _pollTimer = UnityEngine.Random.value * pollInterval;
             ApplyColor();
+        }
+
+        private void OnEnable() => s_all.Add(this);
+
+        private void OnDisable() => s_all.Remove(this);
+
+        /// <summary>
+        /// Player respawn: re-reads the plate now instead of waiting for the next poll, so a
+        /// plate whose occupant was just moved away is released at once. A latched plate that
+        /// was already pressed stays pressed (a solved puzzle stays solved).
+        /// </summary>
+        public void ResetForRespawn()
+        {
+            if (IsLatched) return;
+            bool occupied = IsOccupied();
+            _emptyTime = occupied ? 0f : releaseDelay;
+            SetPressed(occupied);
         }
 
         /// <summary>Releases a latched plate.</summary>
@@ -163,5 +187,8 @@ namespace LanternKeeper
             Gizmos.matrix = transform.localToWorldMatrix;
             Gizmos.DrawWireCube(detectCenter, detectSize);
         }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => s_all.Clear();
     }
 }

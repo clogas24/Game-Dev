@@ -12,7 +12,7 @@ Use this page only if a menu item fails, or to check what it should have produce
 | Layer 8 | Tags and Layers > Layers | `Player` (the Starter Assets prefab is already on layer 8; this only names it) |
 | Layer 9 | Tags and Layers > Layers | `Ghost` |
 | TextMeshPro | Window > TextMeshPro > Import TMP Essential Resources | Needed before the HUD can be built |
-| Build Settings | File > Build Profiles > Scene List | Add `Assets/_Project/Scenes/Sandbox.unity` |
+| Build Settings | File > Build Profiles > Scene List | `Assets/_Project/Scenes/Level01_PumpkinPatch.unity` first (index 0), then `Assets/_Project/Scenes/Sandbox.unity` |
 
 Spirit platforms and the ground stay on **Default**: `ThirdPersonController > Ground Layers` is Default, and the player must not be on a ground layer.
 

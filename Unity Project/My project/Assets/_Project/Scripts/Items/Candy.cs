@@ -17,6 +17,7 @@ namespace LanternKeeper
     public class Candy : MonoBehaviour
     {
         private static readonly List<Candy> s_landed = new List<Candy>(8);
+        private static readonly List<Candy> s_all = new List<Candy>(8);
 
         [Header("Landing")]
         [SerializeField, Min(0f), Tooltip("Speed (m/s) below which the candy counts as landed, once it has touched something.")]
@@ -84,11 +85,27 @@ namespace LanternKeeper
             return best;
         }
 
+        /// <summary>
+        /// Removes every candy, landed or still in the air (player respawn). Each one leaves the
+        /// lists at once, so no ghost can claim a candy that is about to be destroyed.
+        /// </summary>
+        public static void ClearAll()
+        {
+            for (int i = s_all.Count - 1; i >= 0; i--)
+            {
+                GameObject candy = s_all[i].gameObject;
+                candy.SetActive(false);
+                Destroy(candy);
+            }
+        }
+
         private void Awake()
         {
             _body = GetComponent<Rigidbody>();
             _collider = GetComponent<Collider>();
         }
+
+        private void OnEnable() => s_all.Add(this);
 
         /// <summary>Starts the flight. <paramref name="ignore"/> is the thrower's collider, if any.</summary>
         public void Launch(Vector3 velocity, Collider ignore = null)
@@ -152,9 +169,17 @@ namespace LanternKeeper
             Sfx.PlayAt(landClip, transform.position, volume);
         }
 
-        private void OnDisable() => s_landed.Remove(this);
+        private void OnDisable()
+        {
+            s_landed.Remove(this);
+            s_all.Remove(this);
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStatics() => s_landed.Clear();
+        private static void ResetStatics()
+        {
+            s_landed.Clear();
+            s_all.Clear();
+        }
     }
 }

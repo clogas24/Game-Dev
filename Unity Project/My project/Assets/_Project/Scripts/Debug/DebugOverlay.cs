@@ -1,5 +1,5 @@
 using UnityEngine;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR || DEBUG
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine.InputSystem;
@@ -17,6 +17,9 @@ namespace LanternKeeper
     /// </summary>
     public class DebugOverlay : MonoBehaviour
     {
+        // In a release build the body below is compiled out, which leaves these Inspector
+        // fields unread there (CS0414). They must stay so the serialized data is the same.
+#pragma warning disable 0414
         [SerializeField, Tooltip("Show the overlay as soon as the scene starts.")]
         private bool visibleAtStart;
         [SerializeField, Tooltip("Also draw each ghost's state above its head.")]
@@ -25,8 +28,9 @@ namespace LanternKeeper
         private float refreshInterval = 0.25f;
         [SerializeField, Min(8), Tooltip("Overlay font size (pixels at 1080p; scales with screen height).")]
         private int fontSize = 18;
+#pragma warning restore 0414
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR || DEBUG
         private readonly StringBuilder _text = new StringBuilder(512);
         private InputAction _toggleAction;
         private PlayerStateTracker _playerState;

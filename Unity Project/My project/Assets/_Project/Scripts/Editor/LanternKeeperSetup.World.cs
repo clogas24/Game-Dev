@@ -270,28 +270,36 @@ namespace LanternKeeper.EditorTools
 
             // Pause
             RectTransform pause = NewPanel("PausePanel", root.transform, new Color(0f, 0f, 0f, 0.8f));
-            NewText(NewAnchored("Heading", pause, 0.78f, new Vector2(1200f, 110f)), "Paused", 84f, TextAlignmentOptions.Center);
-            Button resume = NewButton("ResumeButton", pause, 0.62f, "Resume");
-            Button restart = NewButton("RestartButton", pause, 0.52f, "Restart");
-            Button quit = NewButton("QuitButton", pause, 0.42f, "Quit");
-            NewText(NewAnchored("SensitivityLabel", pause, 0.30f, new Vector2(900f, 50f)),
+            NewText(NewAnchored("PauseHeading", pause, 0.86f, new Vector2(1200f, 110f)), "Paused", 84f, TextAlignmentOptions.Center);
+            Button resume = NewButton("ResumeButton", pause, 0.72f, "Resume");
+            Button restart = NewButton("RestartButton", pause, 0.63f, "Restart");
+            Button quit = NewButton("QuitButton", pause, 0.54f, "Quit");
+            NewText(NewAnchored("SensitivityLabel", pause, 0.445f, new Vector2(900f, 50f)),
                 "Camera sensitivity", 30f, TextAlignmentOptions.Center);
-            Slider slider = NewSlider("SensitivitySlider", pause, 0.24f);
-            RectTransform valueRect = NewAnchored("SensitivityValue", pause, 0.24f, new Vector2(120f, 50f));
+            Slider slider = NewSlider("SensitivitySlider", pause, 0.395f);
+            RectTransform valueRect = NewAnchored("SensitivityValue", pause, 0.395f, new Vector2(120f, 50f));
             valueRect.anchoredPosition = new Vector2(320f, 0f);
             TextMeshProUGUI sensitivityValue = NewText(valueRect, "1.0", 30f, TextAlignmentOptions.Left);
-            NewText(NewAnchored("Hint", pause, 0.12f, new Vector2(1400f, 50f)),
+            NewText(NewAnchored("PauseHint", pause, 0.32f, new Vector2(1400f, 50f)),
                 "Esc resumes  -  arrow keys and Enter work in this menu", 26f, TextAlignmentOptions.Center)
                 .color = new Color(1f, 1f, 1f, 0.7f);
+            TextMeshProUGUI pauseSavePath = NewText(NewAnchored("PauseSavePath", pause, 0.2f, new Vector2(1800f, 80f)), "", 22f, TextAlignmentOptions.Center);
+            pauseSavePath.color = new Color(1f, 1f, 1f, 0.75f);
+            Button pauseOpenFolder = NewButton("PauseOpenFolderButton", pause, 0.09f, "Open playtest folder");
+            ((RectTransform)pauseOpenFolder.transform).sizeDelta = new Vector2(520f, 70f);
 
             // Win
             RectTransform win = NewPanel("WinPanel", root.transform, new Color(0.02f, 0.015f, 0f, 0.88f));
-            NewText(NewAnchored("Heading", win, 0.76f, new Vector2(1700f, 110f)), "You reached the farmhouse!", 78f, TextAlignmentOptions.Center)
+            NewText(NewAnchored("WinHeading", win, 0.82f, new Vector2(1700f, 110f)), "You reached the farmhouse!", 78f, TextAlignmentOptions.Center)
                 .color = new Color(1f, 0.75f, 0.3f);
-            TextMeshProUGUI stats = NewText(NewAnchored("Stats", win, 0.52f, new Vector2(1200f, 240f)), "", 42f, TextAlignmentOptions.Center);
-            Button winRestart = NewButton("PlayAgainButton", win, 0.30f, "Play again");
-            NewText(NewAnchored("Hint", win, 0.18f, new Vector2(1400f, 50f)),
+            TextMeshProUGUI stats = NewText(NewAnchored("Stats", win, 0.6f, new Vector2(1200f, 240f)), "", 42f, TextAlignmentOptions.Center);
+            Button winRestart = NewButton("PlayAgainButton", win, 0.41f, "Play again");
+            NewText(NewAnchored("WinHint", win, 0.32f, new Vector2(1400f, 50f)),
                 "Press R to play again", 30f, TextAlignmentOptions.Center).color = new Color(1f, 1f, 1f, 0.7f);
+            TextMeshProUGUI winSavePath = NewText(NewAnchored("WinSavePath", win, 0.2f, new Vector2(1800f, 80f)), "", 22f, TextAlignmentOptions.Center);
+            winSavePath.color = new Color(1f, 1f, 1f, 0.75f);
+            Button winOpenFolder = NewButton("WinOpenFolderButton", win, 0.09f, "Open playtest folder");
+            ((RectTransform)winOpenFolder.transform).sizeDelta = new Vector2(520f, 70f);
 
             // GameMenus shows the right panel in Start; saved hidden so nothing flashes.
             title.gameObject.SetActive(false);
@@ -310,6 +318,10 @@ namespace LanternKeeper.EditorTools
             SetRef(menus, "sensitivityValueLabel", sensitivityValue);
             SetRef(menus, "winStatsLabel", stats);
             SetRef(menus, "winRestartButton", winRestart);
+            SetRef(menus, "pauseSavePathLabel", pauseSavePath);
+            SetRef(menus, "pauseOpenFolderButton", pauseOpenFolder);
+            SetRef(menus, "winSavePathLabel", winSavePath);
+            SetRef(menus, "winOpenFolderButton", winOpenFolder);
 
             SavePrefab(root, GameMenusPrefabPath);
         }
@@ -345,7 +357,9 @@ namespace LanternKeeper.EditorTools
             colors.fadeDuration = 0.05f;
             button.colors = colors;
 
-            RectTransform textRect = NewRect("Label", rect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            // Every object in the prefab needs its own name: when the prefab is regenerated Unity
+            // matches old and new objects by name, and duplicates would get new file IDs each time.
+            RectTransform textRect = NewRect(name + "Label", rect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             NewText(textRect, label, 36f, TextAlignmentOptions.Center);
             return button;
         }
@@ -479,6 +493,7 @@ namespace LanternKeeper.EditorTools
             var gameManager = manager.AddComponent<GameManager>();
             SetRef(gameManager, "inputActions", AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath));
             manager.AddComponent<DebugOverlay>();
+            manager.AddComponent<PlaytestLogger>();
             PlacePrefab(menusPrefab, "GameMenus", null, Vector3.zero);
 
             return BakeSandboxNavMesh(environment);

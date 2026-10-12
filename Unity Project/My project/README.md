@@ -14,6 +14,12 @@ Throw candy to lure ghosts away, or onto pressure plates to open gates.
 
 A first playthrough takes about 6–9 minutes.
 
+## Status
+
+**Playtest 1 build (v0.1.0, greybox).** The whole level is playable from the pumpkin patch to the farmhouse door, built from coloured blocks: dark grey is safe ground, cyan is a spirit platform, dark red is a deadly pit, dark blue is shallow water, yellow is a pressure plate, pink is a candy bowl, green marks a checkpoint and warm orange is the goal. There is no final art, animation polish or audio yet. Windows build only at this stage; macOS and Linux builds come with the release.
+
+The build records anonymous play data (times, deaths, flares, candy) to CSV files on the tester's own machine for the playtests; nothing is sent anywhere. The pause and win screens show the folder.
+
 ---
 
 ## Controls
@@ -28,6 +34,7 @@ Lantern Keeper is played with keyboard and mouse, and is fully playable on a lap
 | Sprint (hold) | Left Shift | — |
 | Flare lantern (hold) | F | Right mouse button |
 | Throw candy | E | Left click |
+| Drop candy at your feet | G | — |
 | Pause | Esc | — |
 | Restart (on win screen) | R | — |
 
@@ -81,7 +88,7 @@ Download the zip for your platform and **unzip the whole folder** before running
 2. Clone the repository. The Unity project is the `Unity Project/My project` folder; the repository also contains an unrelated Godot project.
 3. In **Unity Hub**, click **Add → Add project from disk** and select the `Unity Project/My project` folder.
 4. Open it. The first open takes a few minutes while Unity rebuilds its `Library` cache.
-5. The game's scenes are in `Assets/_Project/Scenes`. Open the level scene and press **Play**.
+5. The game's scenes are in `Assets/_Project/Scenes`. Open `Level01_PumpkinPatch` and press **Play**. `Sandbox` is a small test scene for the individual mechanics.
 
 ### Project layout
 
@@ -89,7 +96,7 @@ Download the zip for your platform and **unzip the whole folder** before running
 |---|---|
 | `Assets/_Project/` | All game-specific code, prefabs, scenes, materials, audio, art and animations |
 | `Assets/Starter Assets/` | Unity's Starter Assets third-person character controller (third-party) |
-| `docs/` | Design and production documents: credits, iteration history |
+| `docs/` | Design and production documents: level design, state machines, playtest kit and data format, setup notes, credits, iteration history |
 | `Packages/`, `ProjectSettings/` | Unity package list and project settings |
 
 Unity regenerates `Library/`, `Temp/`, `Logs/`, `UserSettings/` and the IDE project files, so they are not committed. Platform builds go in `Builds/`, which is also not committed.

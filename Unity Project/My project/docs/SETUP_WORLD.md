@@ -2,7 +2,9 @@
 
 The normal route is the menu: **Lantern Keeper > Build Sandbox Scene**. It runs every other item first (placeholder assets, Player, Ghost, World prefabs), rebuilds `Assets/_Project/Scenes/Sandbox.unity` and bakes its NavMesh. Every item can be run again; assets are overwritten in place.
 
-Use this page if a menu item fails, or when building the real level by hand in Step 4. Field names are the Inspector labels. Player setup is in `SETUP_PLAYER.md`.
+Use this page if a menu item fails, or when changing the level by hand. Field names are the Inspector labels. Player setup is in `SETUP_PLAYER.md`.
+
+The real level is different: `Assets/_Project/Scenes/Level01_PumpkinPatch.unity` is built **once** by **Lantern Keeper > Create Level01 Greybox** and tuned by hand from then on (section 7). Build Sandbox Scene and Run All Setup never open it. They do regenerate the prefabs the level uses, in place, so prefab changes still reach the level.
 
 ## 1. Layers, tags, input
 
@@ -43,7 +45,7 @@ Animator (Step 5): GhostAI sets float `Speed` and int `State` (0 Drift, 1 Notice
 | TutorialTrigger | Root: BoxCollider (**Is Trigger**, 8 x 3 x 1), TutorialTrigger | Per instance: **Tutorial Id**, **Text** (tokens `{flare}` `{throw}` `{drop}` `{jump}`), **Seconds** |
 | GoalTrigger | Root: BoxCollider (**Is Trigger**) in front of the door, GoalTrigger. `Door`, `Frame`, `PorchLight` | Nothing |
 | CandyBowl | Root: SphereCollider (**Is Trigger**, radius 1.2), CandyBowl. `Stand`, `Bowl` | Nothing |
-| GameMenus | Canvas (Screen Space Overlay, sort order 20), CanvasScaler (1920 x 1080), GraphicRaycaster, GameMenus. Child `EventSystem` (EventSystem + InputSystemUIInputModule). Panels `TitlePanel`, `PausePanel`, `WinPanel`, saved inactive | The three panels, **Controls Label**, **Resume / Restart / Quit Button**, **Sensitivity Slider**, **Sensitivity Value Label**, **Win Stats Label**, **Win Restart Button** |
+| GameMenus | Canvas (Screen Space Overlay, sort order 20), CanvasScaler (1920 x 1080), GraphicRaycaster, GameMenus. Child `EventSystem` (EventSystem + InputSystemUIInputModule). Panels `TitlePanel`, `PausePanel`, `WinPanel`, saved inactive. The pause and win panels each have a save-path text and an "Open playtest folder" button. Give every object in this prefab a unique name, or it gets new file IDs each time it is regenerated | The three panels, **Controls Label**, **Resume / Restart / Quit Button**, **Sensitivity Slider**, **Sensitivity Value Label**, **Win Stats Label**, **Win Restart Button**, **Pause / Win Save Path Label**, **Pause / Win Open Folder Button** (the playtest widgets are optional) |
 
 Gate notes:
 - The door slides **down** into the ground (`Slide Offset` 0, -3.1, 0), so it cannot pin anyone. The ground under a gate must be thin enough, or the gate raised, for that to look right.
@@ -55,7 +57,8 @@ Gate notes:
 
 | Object | Components | Wire |
 |---|---|---|
-| GameManager | GameManager, DebugOverlay | **Input Actions** = `LanternKeeper.inputactions`. Optional **Start Point** |
+| GameManager | GameManager, DebugOverlay | **Input Actions** = `LanternKeeper.inputactions`. Optional **Start Point**. **Fall Death Height**: below the lowest safe floor and above the pit floors (-4 in Level01) |
+| PlaytestLogger | PlaytestLogger | Nothing. One per scene; writes the playtest CSVs (`PLAYTEST_DATA.md`) |
 | GameMenus | GameMenus prefab | Nothing (finds GameManager and the player itself) |
 | HUD | HUD prefab (Step 2) | Nothing |
 
@@ -82,3 +85,33 @@ Humanoid agent settings (Project Settings, unchanged): radius 0.5, height 2, ste
 - **SectionTrigger**: one at the start of each of the five level sections, scaled to span the whole path so it cannot be skipped. Ids must be unique; they are what the playtest logger records. Each fires once.
 - **Checkpoint**: on a porch at the start of each section after the first, plus one at the spawn with **Lit At Start** ticked. Rotate the checkpoint so `RespawnPoint` (blue Z arrow) faces the way the player should continue, and keep `RespawnPoint` on solid, baked ground at least 7 m from any ghost patrol point (the notice range), so nobody respawns into a chase.
 - **TutorialTrigger**: just before the place where the ability is needed.
+
+## 7. Level01 (the real level)
+
+| Menu item | What it does |
+|---|---|
+| **Create Level01 Greybox** | Builds the level from code and bakes its NavMesh. If the scene file already exists it logs a warning and does nothing |
+| **Rebuild Level01 Greybox (DESTRUCTIVE)** | Throws the scene away and generates it again. Asks first in the Editor; in batch mode it only runs with the `-forceRebuild` command-line flag |
+| **Validate Level01 (read-only)** | Checks ghosts, patrol points, plates, gates, checkpoints, sections and the walking route, and prints the pacing estimate. Changes nothing. Run it after moving things |
+| **Build Playtest (Windows)** | Release build of the level alone to `Builds/Playtest/LanternKeeper_Win_v0.1/`, zipped next to it |
+
+Scene layout:
+
+| Root object | Contents |
+|---|---|
+| `Environment` | Static, baked geometry in `S1_…` to `S5_…` groups plus `Boundaries (invisible)`. Has the NavMeshSurface |
+| `Gameplay` | Spirit platforms, pickups, candy bowls, plates, gates, ghosts and their `…_Patrol_n` points, checkpoints, porch lamps, by section |
+| `Triggers` | `Section_…`, `Tutorial_…` and the goal |
+| `Lighting` | Moon and the farmhouse beacon |
+| `Systems` | GameManager (with DebugOverlay), PlaytestLogger, GameMenus, HUD |
+| `Player`, `MainCamera`, `PlayerFollowCamera` | As in the sandbox |
+| `DesignNotes (EditorOnly)` | `GoldenPath`: empty objects marking the route the pacing estimate is measured along. Tagged EditorOnly, so not in builds |
+
+After changing the level by hand:
+
+- Moved or added anything under `Environment`? Select `Environment` and press **Bake** on the NavMeshSurface.
+- Moved a ghost? Move its `…_Patrol_n` points too. The ghost starts at, and resets to, where it stands in the scene.
+- Changed the route? Move the `GoldenPath` points, or the validator will report gaps and blocked segments that are no longer real.
+- Then run **Validate Level01 (read-only)**.
+
+Level-only settings on the ghosts (prefab overrides): **Line Of Sight Blockers = Default** on all of them, and **Candy Sense Range = 11** on the three plate ghosts. `LEVEL_DESIGN.md` explains why.
