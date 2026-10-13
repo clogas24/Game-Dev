@@ -18,7 +18,7 @@ The code survives the art pass. Where a model now stands in for a greybox block,
 | Dark grey | Safe ground | `M_LK_Ground` | Dark, slightly green earth: still the darkest neutral on screen |
 | Cyan, see-through | Spirit platform (only exists in light) | `M_SpiritPlatform` | Cyan with a bright pulsing rim (the only cyan in the level) |
 | Dark red | Deadly pit floor, and a strip along each pit edge | `M_LK_Hazard` | The same, glowing a little more; dark earth walls round the pit |
-| Dark blue | Shallow water: a fall costs a walk back up a ramp, not a life | `M_LK_Shallow` | A see-through blue water surface 0.55 m down, over the same floor |
+| Dark blue | Water: it puts the lantern out, like a pit, so every crossing is made on its bridge (there are no ramps out) | `M_LK_Shallow` | A see-through blue water surface 0.55 m down, over the same floor |
 | Brown | Things to jump over or walk round (crates, fence, rails) | `M_LK_Obstacle` | Crates, a rail fence, hay-bale walls (S1); hedges (S4 rails) |
 | Light grey | Gravestones: cover from ghosts | `M_LK_Stone` | Kenney gravestones, each stretched to its block's width and height |
 | Olive | Corn walls and hedges | `M_LK_Corn` | Corn: the block stays as the dark heart of the row, with stalks on it. Hedges in the S4 corridor |
@@ -44,9 +44,9 @@ Legend   P start        C checkpoint      * candle stub     B candy bowl     L p
 384      |          #########[ DOOR ]#######              |   GOAL: door + orange porch + beacon
          |                    porch                       |
 372      |XXXXXXXXXXXXXXXXXXXXX====XXXXXXXXXXXXXXXXXXXXXXX|   run C (5.4 m)
-         |XXXXXXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXX|     jump 0.8 m
+         |XXXXXXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXX|     jump 2 m  
          |XXXXXXXXXXXXXXXXXXXXX====XXXXXXXXXXXXXXXXXXXXXXX|   run B (4.9 m)      S5 last pit
-         |XXXXXXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXX|     jump 0.8 m       (ghosts stop at the edge)
+         |XXXXXXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXX|     jump 2 m         (ghosts stop at the edge)
 356      |XXXXXXXXXXXXXXXXXXXXX====XXXXXXXXXXXXXXXXXXXXXXX|   run A (4.1 m)
          |                         L                      |   lamp shows run A
 349      |          j <----------------------> j          |   ghost J
@@ -84,7 +84,7 @@ Legend   P start        C checkpoint      * candle stub     B candy bowl     L p
 197      |----------------------S4------------------------|
 188      |~~~~~~~~~~~~~~~~~~~~~====~~~~~~~~~~~~~~~~~~~~~~~|
          |~~~~~~~~~~~~~~~~~~~~~====~~~~~~~~~~~~~~~~~~~~~~~|   S3 trench (shallow), 8 m bridge
-180      |/ramp~~~~~~~~~~~~~~~~====~~~~~~~~~~~~~~~~~ramp\ |   ramps lead back to the near side
+180      |~~~~~~~~~~~~~~~~~~~~~====~~~~~~~~~~~~~~~~~~~~~~~|   water puts the lantern out      
 177.5    |                      c                         |
 174      |       c <------------+------------> c          |   ghost C: triangle in front of the bridge
 170      |          o                    o                |
@@ -141,7 +141,7 @@ Times are estimates (see [Pacing](#pacing)). "Remix" names the earlier ability a
 | **S2 Spirit Bridge** (z 48..106) | Cross the creek, the pond and the pit | Light reveals spirit platforms (a porch lamp shows the first one before the player's own light reaches it) | Bridge 2: follow the platforms round two corners with only ~6 m lit. Bridge 3: 16 m over a deadly pit, far side unseen | Move/jump: walking slowly and precisely is now the skill | 58 s | **1 candle stub** on a two-tile dead-end spur of bridge 2. It rewards sweeping the light around at a corner and shows that bridges can branch; it floats over water, so it also hints that something invisible is there | `S2_Checkpoint_Creek` on the way to bridge 1. `S2_Checkpoint_DeepBridge` at the foot of bridge 3: lighting it reveals the bridge's first tiles |
 | **S3 Graveyard** (z 106..196) | Get past three ghosts and over the trench | Ghosts: Drift, Notice, Chase. The flare repels them and costs candle 8× faster | Ghost B in a 3.2 m corridor: the obvious way through needs a flare | **Light reveal + flare:** ghost C circles in front of a short bridge. Flaring at it erases the bridge, so the player must stop flaring or pick the moment. **Candle:** the flare spends it | 83 s | **1 candle stub** just beyond ghost B's corridor. It pays back the forced flare, so the lesson costs little, and it is the first thing seen on leaving the corridor | `S3_Checkpoint_GraveyardGate` in front of the gate opening, 27 m from the nearest patrol point |
 | **S4 Candy Porch → Cemetery Gate** (z 196..300) | Open two gates | Throw candy to lure a ghost (ghost D guards a narrow opening; candy thrown aside pulls it away) | One-plate gate: a ghost must eat candy **on** the plate. The player can press the plate, but it is 16 m from the doorway and the gate shuts first | **Candy:** two-plate gate (`requiredPlates = 2`, `stayOpenOnceOpened`). Two ghosts on two plates, or one ghost plus the player. **Ghosts** are now tools, not threats | 119 s | **1 candle stub** beside plate one. The plate puzzles are the longest waits in the level, so this is where a careful player would otherwise run low; placed next to the plate it also draws the eye to the plate. Candy comes from three bowls (porch, each gate yard), which refill, so a puzzle can always be retried | `S4_Checkpoint_Porch` between the rails. `S4_Checkpoint_TwoPlate` in the corridor behind gate one, filling it, so a death in the two-plate yard never sends the player back through gate one |
-| **S5 Cornfield → Farmhouse** (z 300..392) | Reach the farmhouse door | – | Corn maze with ghost H: cover (corn blocks sight), timing, candy or flare, the player's choice | **Everything:** two ghosts guard a gap, and one candy takes only one of them (split the pair). **Light reveal:** the last bridge is the escape route, since ghosts cannot follow, and a flare there erases it. **Move/jump:** two 0.8 m jumps between platform runs, with a shrinking light if the candle is low. **Candle:** a 20 m detour through the maze for a stub, or press on | 103 s | **2 candle stubs.** One in plain sight at the entry: the last guaranteed fuel, so nobody starts the finale empty. One in the maze's dead end: risk for reward, a 20 m detour in ghost H's rows. Candy bowls at the entry and at the midway glade | `S5_Checkpoint_Entry` behind gate two. `S5_Checkpoint_Mid` in the gap out of the maze, before the pair |
+| **S5 Cornfield → Farmhouse** (z 300..392) | Reach the farmhouse door | – | Corn maze with one way through and a ghost in each of its three corridors (K, H, L): cover (corn blocks sight), timing, candy or flare, the player's choice | **Everything:** two ghosts guard a gap, and one candy takes only one of them (split the pair). **Light reveal:** the last bridge is the escape route, since ghosts cannot follow, and a flare there erases it. **Move/jump:** two 0.8 m jumps between platform runs, with a shrinking light if the candle is low. **Candle:** a 20 m detour through the maze for a stub, or press on | 103 s | **2 candle stubs.** One in plain sight at the entry: the last guaranteed fuel, so nobody starts the finale empty. One in the maze's dead end: risk for reward, a 20 m detour in ghost H's rows. Candy bowls at the entry and at the midway glade | `S5_Checkpoint_Entry` behind gate two. `S5_Checkpoint_Mid` in the gap out of the maze, before the pair |
 
 ## Ability coverage
 
@@ -223,8 +223,8 @@ Each extra second of flare costs 3.5, each ghost hit 20. A player who skips the 
 2. **Candle runs out while solving a plate puzzle.** The model has players at 20–25% through the second half of S4. Look for `extinguished,drained` events in S4. Fix: move the stub, or add one in the two-plate yard.
 3. **The maze stub is nearly required.** Players who skip the dead end may run dry at the last bridge. Look at `final_candle_pct` and S5 deaths with cause `drained`.
 4. **Candy rolling off a plate.** Thrown candy bounces. G (drop at feet) is the reliable way to put candy on a plate, but the candy prompt only mentions it briefly.
-5. **Jumps on the last bridge.** The 0.8 m gaps are generous for a walking jump (1.6 m) and each run is long enough for a sprinting jump (4.3 m), but this is the first time platforms need a jump. Look for S5 deaths with cause `fell`.
-6. **Flare-erases-bridge is discovered, not taught.** The trench is shallow so the discovery is cheap, but a tester may not connect the two. Listen for it in the think-aloud.
+5. **Jumps on the last bridge.** The 2 m gaps are too wide for a walking jump (1.6 m): they need a sprinting jump (4.3 m), and each run is long enough to land one. This is the first time platforms need a jump. Look for S5 deaths with cause `fell`.
+6. **Flare-erases-bridge is discovered, not taught.** The trench is water, and water now puts the lantern out, so the discovery costs a respawn at the graveyard checkpoint. A tester may not connect the two. Listen for it in the think-aloud.
 7. **Ghost B can be sprinted past** (a sprint is faster than a chase). That is fine, but it skips the flare lesson; note who does it.
 8. **Line of sight is new.** Ghosts that do not notice a player behind a gravestone may read as broken or as clever. Ask.
 9. **Brightness and readability.** Lighting was set without looking at it (ambient and moon are a little brighter than the sandbox). Check that the colour code reads, and that spirit platforms are still clearly invisible in the dark.

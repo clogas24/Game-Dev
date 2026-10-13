@@ -24,11 +24,13 @@ namespace LanternKeeper.EditorTools
     //
     // Layout: the level runs along +Z. Ground tops are at y = 0. Sections 1-2 are a 14 m strip
     // (x -7..7), sections 3-5 a 28 m strip (x -14..14). docs/LEVEL_DESIGN.md has the map.
+    //
+    // LevelKit (the pieces: ground, bridges, ghosts, gates, triggers) and the validation are
+    // shared with the tutorial and Level02, whose layouts are in LanternKeeperSetup.Levels.cs.
     public static partial class LanternKeeperSetup
     {
         private const string Level01SceneName = "Level01_PumpkinPatch";
         private const string Level01ScenePath = ScenesDir + "/" + Level01SceneName + ".unity";
-        private const string Level01NavMeshPath = ScenesDir + "/" + Level01SceneName + "-NavMesh.asset";
         private const string ForceRebuildArg = "-forceRebuild";
         private const string GoldenPathRootName = "DesignNotes (EditorOnly)";
         private const float PlayerWalkSpeed = 2f;    // ThirdPersonController.MoveSpeed
@@ -43,12 +45,35 @@ namespace LanternKeeper.EditorTools
         // Seconds a first-time player is expected to spend NOT walking in each section: reading a
         // prompt, watching a ghost, waiting for a ghost to reach and eat candy (4 s), hesitating on
         // a bridge. Estimates, to be replaced by the logger's S1..S5_time_s after Playtest 1.
-        private static readonly float[] Level01WaitSeconds = { 17f, 20f, 30f, 55f, 30f };
+        private static readonly float[] Level01WaitSeconds = { 17f, 20f, 30f, 55f, 45f };
 
         // Longest stretch of the walking route with nothing underfoot that is expected in each
-        // section: the S1 sprint-jump ditch (3 m) and the S5 jump gaps (0.8 m). Bridge tiles are
+        // section: the S1 sprint-jump ditch (3 m) and the S5 jump gaps (2 m). Bridge tiles are
         // about 0.1 m apart.
-        private static readonly float[] Level01AllowedGap = { 3.3f, 0.35f, 0.35f, 0.35f, 1.05f };
+        private static readonly float[] Level01AllowedGap = { 3.3f, 0.35f, 0.35f, 0.35f, 2.3f };
+
+        /// <summary>What the generator and the validation need to know about one level scene.</summary>
+        private sealed class LevelSpec
+        {
+            public string SceneName;
+            public string[] SectionIds;
+            public float[] WaitSeconds;  // per section: seconds a first-time player spends not walking
+            public float[] AllowedGap;   // per section: longest stretch of the route with nothing underfoot
+            public float MinSeconds;     // pacing target at walking speed
+            public float MaxSeconds;
+
+            public string ScenePath => ScenesDir + "/" + SceneName + ".unity";
+        }
+
+        private static readonly LevelSpec Level01Spec = new LevelSpec
+        {
+            SceneName = Level01SceneName,
+            SectionIds = Level01SectionIds,
+            WaitSeconds = Level01WaitSeconds,
+            AllowedGap = Level01AllowedGap,
+            MinSeconds = 360f,
+            MaxSeconds = 600f
+        };
 
         // ------------------------------------------------------------------ menu items
 
@@ -101,19 +126,25 @@ namespace LanternKeeper.EditorTools
                 if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return 1;
                 EditorSceneManager.OpenScene(Level01ScenePath, OpenSceneMode.Single);
             }
-            return ValidateOpenLevel();
+            return ValidateOpenLevel(Level01Spec);
         }
 
-        /// <summary>Level01 first, Sandbox second, anything else after them. Disables the unused template scene.</summary>
+        /// <summary>
+        /// The game's own order first (tutorial, Level01, Level02: the game starts in scene 0),
+        /// the Sandbox after them, anything else last. Disables the unused template scene.
+        /// </summary>
         public static void EnsureBuildSceneOrder()
         {
             var old = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
-            var result = new List<EditorBuildSettingsScene>(old.Count + 2);
-            if (File.Exists(Level01ScenePath)) result.Add(new EditorBuildSettingsScene(Level01ScenePath, true));
-            if (File.Exists(SandboxScenePath)) result.Add(new EditorBuildSettingsScene(SandboxScenePath, true));
+            var first = new List<string> { TutorialSpec.ScenePath, Level01ScenePath, Level02Spec.ScenePath, SandboxScenePath };
+            var result = new List<EditorBuildSettingsScene>(old.Count + first.Count);
+            foreach (string path in first)
+            {
+                if (File.Exists(path)) result.Add(new EditorBuildSettingsScene(path, true));
+            }
             foreach (EditorBuildSettingsScene scene in old)
             {
-                if (scene.path == Level01ScenePath || scene.path == SandboxScenePath) continue;
+                if (first.Contains(scene.path)) continue;
                 // The empty Unity template scene was index 0 until now; it is kept in the list but switched off.
                 bool enabled = scene.enabled && scene.path != "Assets/Scenes/SampleScene.unity";
                 result.Add(new EditorBuildSettingsScene(scene.path, enabled));
@@ -140,7 +171,7 @@ namespace LanternKeeper.EditorTools
                 return;
             }
 
-            var kit = new Level01Kit();
+            var kit = new LevelKit(Level01SectionIds, false);
             if (!kit.LoadPrefabs())
             {
                 // First run on a fresh checkout: make the prefabs, then try once more.
@@ -159,7 +190,7 @@ namespace LanternKeeper.EditorTools
             EnsureFolder(ScenesDir);
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             kit.CreateGroups();
-            kit.BuildLighting();
+            kit.BuildLighting("S5_Farmhouse_Beacon (goal light)", new Vector3(0f, 4.5f, 381.5f));
             kit.BuildSection1();
             kit.BuildSection2();
             kit.BuildSection3();
@@ -169,7 +200,7 @@ namespace LanternKeeper.EditorTools
             kit.BuildPlayerAndSystems();
             kit.BuildGoldenPath();
 
-            if (!BakeLevelNavMesh(kit.Environment))
+            if (!BakeLevelNavMesh(kit.Environment, Level01SceneName))
             {
                 Debug.LogError("[Lantern Keeper] Level01 not saved: the NavMesh bake failed.");
                 return;
@@ -188,13 +219,14 @@ namespace LanternKeeper.EditorTools
             // Opened again from disk: a rebuild saves over the old NavMesh asset, which leaves the
             // scene in memory without a NavMesh, and the check should see what was saved anyway.
             EditorSceneManager.OpenScene(Level01ScenePath, OpenSceneMode.Single);
-            ValidateOpenLevel();
+            ValidateOpenLevel(Level01Spec);
         }
 
         // Same recipe as the sandbox: only the colliders under Environment are baked, so spirit
         // platforms (under Gameplay) are never walkable for ghosts.
-        private static bool BakeLevelNavMesh(Transform environment)
+        private static bool BakeLevelNavMesh(Transform environment, string sceneName)
         {
+            string navMeshPath = ScenesDir + "/" + sceneName + "-NavMesh.asset";
             Physics.SyncTransforms();
             var surface = environment.gameObject.AddComponent<NavMeshSurface>();
             surface.collectObjects = CollectObjects.Children;
@@ -204,22 +236,29 @@ namespace LanternKeeper.EditorTools
 
             NavMeshData data = surface.navMeshData;
             if (data == null) return false;
-            data.name = Level01SceneName + "-NavMesh";
-            AssetDatabase.CreateAsset(data, Level01NavMeshPath);
-            surface.navMeshData = AssetDatabase.LoadAssetAtPath<NavMeshData>(Level01NavMeshPath);
+            data.name = sceneName + "-NavMesh";
+            AssetDatabase.CreateAsset(data, navMeshPath);
+            surface.navMeshData = AssetDatabase.LoadAssetAtPath<NavMeshData>(navMeshPath);
             EditorUtility.SetDirty(surface);
             return true;
         }
 
-        /// <summary>Everything needed while the level is being generated: prefabs, materials, group parents.</summary>
-        private sealed class Level01Kit
+        /// <summary>
+        /// Everything needed while a level is being generated: prefabs, materials, group parents
+        /// and the pieces. The Level01 layout is below; the tutorial's and Level02's are in
+        /// LanternKeeperSetup.Levels.cs.
+        /// </summary>
+        private sealed partial class LevelKit
         {
             private const float StripNarrow = 7f;   // half width of sections 1-2
             private const float StripWide = 14f;    // half width of sections 3-5
             private const float WallHeight = 3f;
-            private const float ShallowDepth = 1.6f; // creek, pond, trench: too deep to jump out of (jump height 1.2)
-            private const float PitDepth = 6f;       // deadly pits; GameManager.fallDeathHeight is -4
-            private const float FallDeathHeight = -4f;
+            private const float ShallowDepth = 1.6f; // creek, pond, trench: water, and water puts the lantern out
+            private const float PitDepth = 6f;       // deadly pits
+            // The lantern goes out below this height. It is between the S1 ditch floor (-1, safe:
+            // you jump back out) and the water floors (-1.6), so falling in water costs a life
+            // like a pit does, and every crossing has to be made on its bridge.
+            private const float FallDeathHeight = -1.3f;
             private const float PuzzleCandySense = 11f;
 
             private GameObject _player, _platform, _lamp, _candle, _hud, _mainCamera, _followCamera;
@@ -228,8 +267,21 @@ namespace LanternKeeper.EditorTools
             private Transform _gameplay, _triggers, _lighting, _systems, _notes;
             private Transform _env, _play;      // current section's parents
             private readonly List<KeyValuePair<string, Vector2[]>> _paths = new List<KeyValuePair<string, Vector2[]>>(5);
+            private readonly string[] _sectionIds;
+            private readonly bool _keepMaterials;
 
             public Transform Environment { get; private set; }
+
+            /// <param name="sectionIds">The level's section ids, in order.</param>
+            /// <param name="keepMaterials">
+            /// True leaves the M_LK_* materials that already exist as they are (Level01 shares
+            /// them and its dressing has tuned their colours); false resets them to the greybox colours.
+            /// </param>
+            public LevelKit(string[] sectionIds, bool keepMaterials)
+            {
+                _sectionIds = sectionIds;
+                _keepMaterials = keepMaterials;
+            }
 
             public bool LoadPrefabs()
             {
@@ -260,17 +312,27 @@ namespace LanternKeeper.EditorTools
             // The greybox colour code. Spirit platforms keep their own cyan material.
             public void MakeMaterials()
             {
-                _ground = MakeMaterial("M_LK_Ground", new Color(0.17f, 0.17f, 0.19f));                                       // safe ground: dark grey
-                _hazard = MakeMaterial("M_LK_Hazard", new Color(0.42f, 0.04f, 0.04f), false, new Color(0.16f, 0.01f, 0.01f)); // pits and their edges: dark red
-                _shallow = MakeMaterial("M_LK_Shallow", new Color(0.08f, 0.17f, 0.34f));                                     // creek, pond, trench: a fall costs time, not a life
-                _obstacle = MakeMaterial("M_LK_Obstacle", new Color(0.36f, 0.27f, 0.17f));                                   // crates, fences: jump over or walk round
-                _stone = MakeMaterial("M_LK_Stone", new Color(0.46f, 0.46f, 0.5f));                                          // gravestones: cover
-                _corn = MakeMaterial("M_LK_Corn", new Color(0.36f, 0.34f, 0.1f));                                            // corn walls
-                _goalMat = MakeMaterial("M_LK_Goal", new Color(1f, 0.55f, 0.15f), false, new Color(1.3f, 0.6f, 0.1f));       // the goal: warm orange
-                _checkpointPad = MakeMaterial("M_LK_Checkpoint", new Color(0.2f, 1f, 0.45f), false, new Color(0.15f, 0.9f, 0.35f));
-                _bowlMat = MakeMaterial("M_LK_CandyBowl", new Color(1f, 0.25f, 0.75f), false, new Color(0.9f, 0.15f, 0.6f)); // candy is pink, so the bowl is too
-                _porch = MakeMaterial("M_LK_Porch", new Color(0.3f, 0.26f, 0.24f));
+                _ground = LevelMaterial("M_LK_Ground", new Color(0.17f, 0.17f, 0.19f));                                       // safe ground: dark grey
+                _hazard = LevelMaterial("M_LK_Hazard", new Color(0.42f, 0.04f, 0.04f), new Color(0.16f, 0.01f, 0.01f));       // pits and their edges: dark red
+                _shallow = LevelMaterial("M_LK_Shallow", new Color(0.08f, 0.17f, 0.34f));                                     // creek, pond, trench: a fall costs time, not a life
+                _obstacle = LevelMaterial("M_LK_Obstacle", new Color(0.36f, 0.27f, 0.17f));                                   // crates, fences: jump over or walk round
+                _stone = LevelMaterial("M_LK_Stone", new Color(0.46f, 0.46f, 0.5f));                                          // gravestones: cover
+                _corn = LevelMaterial("M_LK_Corn", new Color(0.36f, 0.34f, 0.1f));                                            // corn walls
+                _goalMat = LevelMaterial("M_LK_Goal", new Color(1f, 0.55f, 0.15f), new Color(1.3f, 0.6f, 0.1f));              // the goal: warm orange
+                _checkpointPad = LevelMaterial("M_LK_Checkpoint", new Color(0.2f, 1f, 0.45f), new Color(0.15f, 0.9f, 0.35f));
+                _bowlMat = LevelMaterial("M_LK_CandyBowl", new Color(1f, 0.25f, 0.75f), new Color(0.9f, 0.15f, 0.6f));        // candy is pink, so the bowl is too
+                _porch = LevelMaterial("M_LK_Porch", new Color(0.3f, 0.26f, 0.24f));
                 _wall = AssetDatabase.LoadAssetAtPath<Material>(MaterialsDir + "/M_Wall.mat");
+            }
+
+            private Material LevelMaterial(string name, Color color, Color? emission = null)
+            {
+                if (_keepMaterials)
+                {
+                    var existing = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialsDir}/{name}.mat");
+                    if (existing != null) return existing;
+                }
+                return MakeMaterial(name, color, false, emission);
             }
 
             public void CreateGroups()
@@ -297,7 +359,8 @@ namespace LanternKeeper.EditorTools
 
             // ------------------------------------------------------------------ lighting
 
-            public void BuildLighting()
+            /// <summary>Night lighting, the moon, and a warm light over the goal at <paramref name="beaconPosition"/>.</summary>
+            public void BuildLighting(string beaconName, Vector3 beaconPosition)
             {
                 // Night, but a little brighter than the sandbox so testers can read the colour code.
                 RenderSettings.skybox = null;
@@ -318,9 +381,9 @@ namespace LanternKeeper.EditorTools
                 moonLight.shadows = LightShadows.Soft;
 
                 // The goal can be seen glowing across the last pit.
-                var beacon = new GameObject("S5_Farmhouse_Beacon (goal light)");
+                var beacon = new GameObject(beaconName);
                 beacon.transform.SetParent(_lighting, false);
-                beacon.transform.position = new Vector3(0f, 4.5f, 381.5f);
+                beacon.transform.position = beaconPosition;
                 var beaconLight = beacon.AddComponent<Light>();
                 beaconLight.type = LightType.Point;
                 beaconLight.color = new Color(1f, 0.6f, 0.2f);
@@ -374,10 +437,8 @@ namespace LanternKeeper.EditorTools
                 BeginSection(Level01SectionIds[1]);
                 float w = StripNarrow;
 
-                // Bridge 1 over a shallow creek. Falling in costs a walk up a ramp, back on the near bank.
+                // Bridge 1 over the creek. The water puts the lantern out: there is no wading across.
                 Slab("S2_Creek_Floor (shallow)", _env, -w, w, 52f, 58f, -ShallowDepth, 0.5f, _shallow);
-                Ramp("S2_Creek_Ramp_West", -w, -5f, 55.2f, 52f, -ShallowDepth, 0f);
-                Ramp("S2_Creek_Ramp_East", 5f, w, 55.2f, 52f, -ShallowDepth, 0f);
                 Bridge("S2_Bridge1", 0f, 2f, 52f, 58f, 4, 0.12f);
                 // 4 m reveal radius: it reaches the first platform and none of the second, so the
                 // player sees what a spirit platform looks like before their own light gets there.
@@ -387,8 +448,6 @@ namespace LanternKeeper.EditorTools
 
                 // Bridge 2 over the pond: north, east, north again. Only about 6 m is lit at a time.
                 Slab("S2_Pond_Floor (shallow)", _env, -w, w, 64f, 80f, -ShallowDepth, 0.5f, _shallow);
-                Ramp("S2_Pond_Ramp_West", -w, -5.4f, 67.2f, 64f, -ShallowDepth, 0f);
-                Ramp("S2_Pond_Ramp_East", 5.4f, w, 67.2f, 64f, -ShallowDepth, 0f);
                 Transform bridge2 = Child(_play, "S2_Bridge2 (dogleg)");
                 int tile = 1;
                 for (int i = 0; i < 4; i++) Tile($"S2_Bridge2_P{tile++}", bridge2, -5f, -3f, 64.05f + 2.1f * i, 66.05f + 2.1f * i);
@@ -456,8 +515,6 @@ namespace LanternKeeper.EditorTools
                 AddGhost("S3_Ghost_C", 9f, V(-8, 174), V(8, 174), V(0, 177.5f));
 
                 Slab("S3_Trench_Floor (shallow)", _env, -w, w, 180f, 188f, -ShallowDepth, 0.5f, _shallow);
-                Ramp("S3_Trench_Ramp_West", -w, -12f, 183.2f, 180f, -ShallowDepth, 0f);
-                Ramp("S3_Trench_Ramp_East", 12f, w, 183.2f, 180f, -ShallowDepth, 0f);
                 Bridge("S3_Bridge_Trench", 0f, 2.4f, 180f, 188f, 4, 0.08f);
                 Ground("S3_Ground_FarBank", -w, w, 188f, 196f);
 
@@ -554,15 +611,23 @@ namespace LanternKeeper.EditorTools
                 AddPickup("S5_CandlePickup_Entry", new Vector3(-6f, 0.7f, 304f));
                 AddBowl("S5_CandyBowl_Entry", new Vector3(-3f, 0f, 307f));
 
-                // Corn maze: four walls, 4 m corridors, two ways through and one dead end.
+                // Corn maze: four walls, 4 m corridors, ONE way through, and a ghost in each
+                // corridor. In at the east end of wall 1, west along the whole first corridor, back
+                // east along the second to the gap at x -4..0, then a few steps to the way out.
+                // The second corridor's east half and the third's west half are dead ends (2c and
+                // 3c close what used to be the short cuts).
                 Corn("S5_Corn_1", -w, 9.5f, 310f);
                 Corn("S5_Corn_2a", -9.5f, 0f, 316f);
                 Corn("S5_Corn_2b", 4f, w, 316f);
+                Corn("S5_Corn_2c", 0f, 4f, 316f);
                 Corn("S5_Corn_3a", -w, -4f, 322f);
                 Corn("S5_Corn_3b", 0f, 9.5f, 322f);
+                Corn("S5_Corn_3c", 9.5f, w, 322f);
                 Corn("S5_Corn_4a", -w, 3f, 328f);
                 Corn("S5_Corn_4b", 7.5f, w, 328f);
+                AddGhost("S5_Ghost_K", 9f, V(-11.5f, 313.5f), V(5f, 313.5f));
                 AddGhost("S5_Ghost_H", 9f, V(-11.5f, 319.5f), V(11.5f, 319.5f));
+                AddGhost("S5_Ghost_L", 9f, V(-11f, 325.5f), V(-5f, 325.5f));
                 AddPickup("S5_CandlePickup_MazeDeadEnd", new Vector3(-12f, 0.7f, 325.5f));
 
                 // Midway glade.
@@ -575,19 +640,20 @@ namespace LanternKeeper.EditorTools
                 AddGhost("S5_Ghost_I", 9f, V(-7, 344), V(7, 344));
                 AddGhost("S5_Ghost_J", 9f, V(7, 349), V(-7, 349));
 
-                // The last pit. Three runs of platforms with two 0.8 m jumps; each run is long
-                // enough to land a sprinting jump on. Ghosts stop at the edge.
+                // The last pit. Three runs of platforms with two 2 m jumps: a walking jump (1.6 m)
+                // falls short, a sprinting jump (4.3 m) clears them, and each run is long enough
+                // to land one on. Ghosts stop at the edge.
                 PlacePrefab(_lamp, "S5_PorchLamp_FinalBridge", _play, new Vector3(2.2f, 0f, 354.6f));
                 Slab("S5_Pit_Floor (deadly)", _env, -w, w, 356f, 372f, -PitDepth, 0.5f, _hazard);
                 HazardEdge("S5_Pit_Edge_South", -w, w, 355.5f, 356f);
                 HazardEdge("S5_Pit_Edge_North", -w, w, 372f, 372.5f);
                 Transform bridge = Child(_play, "S5_Bridge_Final (two jumps)");
-                Tile("S5_BridgeFinal_A1", bridge, -1.2f, 1.2f, 356.05f, 358.05f);
-                Tile("S5_BridgeFinal_A2", bridge, -1.2f, 1.2f, 358.1f, 360.1f);
-                Tile("S5_BridgeFinal_B1", bridge, -1.2f, 1.2f, 360.9f, 363.3f);
-                Tile("S5_BridgeFinal_B2", bridge, -1.2f, 1.2f, 363.35f, 365.75f);
-                Tile("S5_BridgeFinal_C1", bridge, -1.2f, 1.2f, 366.55f, 369.25f);
-                Tile("S5_BridgeFinal_C2", bridge, -1.2f, 1.2f, 369.3f, 371.98f);
+                Tile("S5_BridgeFinal_A1", bridge, -1.2f, 1.2f, 356.05f, 357.65f);
+                Tile("S5_BridgeFinal_A2", bridge, -1.2f, 1.2f, 357.7f, 359.3f);
+                Tile("S5_BridgeFinal_B1", bridge, -1.2f, 1.2f, 361.3f, 363.42f);
+                Tile("S5_BridgeFinal_B2", bridge, -1.2f, 1.2f, 363.47f, 365.6f);
+                Tile("S5_BridgeFinal_C1", bridge, -1.2f, 1.2f, 367.6f, 369.77f);
+                Tile("S5_BridgeFinal_C2", bridge, -1.2f, 1.2f, 369.82f, 371.98f);
 
                 // Farmhouse: a dark block with the goal door in warm orange.
                 Ground("S5_Ground_FarmYard", -w, w, 372f, 392f);
@@ -598,7 +664,7 @@ namespace LanternKeeper.EditorTools
                 AddSection(4, "Cornfield", -w, w, 301.5f);
 
                 Route(4, V(0, 300), V(0, 304), V(-6, 304), V(-3, 305.9f), V(11.75f, 306.5f), V(11.75f, 313.5f),
-                    V(2, 313.5f), V(2, 319.5f), V(-2, 319.5f), V(-2, 325.5f), V(-12, 325.5f), V(4.3f, 325.5f),
+                    V(-11.75f, 313.5f), V(-11.75f, 319.5f), V(-2, 319.5f), V(-2, 325.5f), V(-12, 325.5f), V(4.3f, 325.5f),
                     V(4.3f, 332), V(0.8f, 334.2f), V(0, 338.5f), V(0, 356), V(0, 372), V(0, 382.6f));
             }
 
@@ -646,7 +712,7 @@ namespace LanternKeeper.EditorTools
                 manager.transform.SetParent(_systems, false);
                 var gameManager = manager.AddComponent<GameManager>();
                 SetRef(gameManager, "inputActions", AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath));
-                // Creek, pond and trench floors are at -1.6 (safe); pit floors at -6 (deadly).
+                // Creek, pond and trench floors (-1.6) and pit floors (-6) are both below it; the S1 ditch (-1) is not.
                 SetFloat(gameManager, "fallDeathHeight", FallDeathHeight);
                 manager.AddComponent<DebugOverlay>();
 
@@ -683,7 +749,7 @@ namespace LanternKeeper.EditorTools
 
             private void Route(int section, params Vector2[] points)
             {
-                _paths.Add(new KeyValuePair<string, Vector2[]>(Level01SectionIds[section], points));
+                _paths.Add(new KeyValuePair<string, Vector2[]>(_sectionIds[section], points));
             }
 
             /// <summary>Safe ground: top at y = 0, 2 m thick so banks are solid walls seen from a creek.</summary>
@@ -863,7 +929,7 @@ namespace LanternKeeper.EditorTools
 
             private void AddSection(int index, string displayName, float xMin, float xMax, float z)
             {
-                string id = Level01SectionIds[index];
+                string id = _sectionIds[index];
                 GameObject go = PlacePrefab(_section, "Section_" + id, _triggers, new Vector3((xMin + xMax) * 0.5f, 0f, z));
                 go.transform.localScale = new Vector3((xMax - xMin) / 8f, 1f, 1f); // the prefab's box is 8 m wide
                 RecordOverrides(go.transform);
@@ -891,8 +957,9 @@ namespace LanternKeeper.EditorTools
         /// Checks the open scene and logs a report. Everything is read from the scene, so it stays
         /// valid after hand edits. Returns the number of problems.
         /// </summary>
-        private static int ValidateOpenLevel()
+        private static int ValidateOpenLevel(LevelSpec spec)
         {
+            string[] sectionIds = spec.SectionIds;
             Physics.SyncTransforms();
             var problems = new List<string>();
             var report = new StringBuilder(2048);
@@ -924,14 +991,14 @@ namespace LanternKeeper.EditorTools
             if (managers.Count != 1) problems.Add($"Expected 1 GameManager, found {managers.Count}.");
             if (loggers.Count != 1) problems.Add($"Expected 1 PlaytestLogger, found {loggers.Count}.");
             if (goals.Count != 1) problems.Add($"Expected 1 GoalTrigger, found {goals.Count}.");
-            if (dummies.Count > 0) problems.Add("TestDummy must not be in Level01.");
-            foreach (string id in Level01SectionIds)
+            if (dummies.Count > 0) problems.Add("TestDummy must not be in a level.");
+            foreach (string id in sectionIds)
             {
                 int count = 0;
                 foreach (SectionTrigger section in sections) if (section.SectionId == id) count++;
                 if (count != 1) problems.Add($"Section id '{id}' is used by {count} SectionTriggers (expected 1).");
             }
-            if (checkpoints.Count < Level01SectionIds.Length) problems.Add($"Only {checkpoints.Count} checkpoints; every section needs one.");
+            if (checkpoints.Count < sectionIds.Length) problems.Add($"Only {checkpoints.Count} checkpoints; every section needs one.");
 
             // --- ghosts: patrol points on the NavMesh, joined by complete paths, clear of plates and respawn points
             int patrolPoints = 0;
@@ -1062,32 +1129,35 @@ namespace LanternKeeper.EditorTools
             }
             else
             {
-                for (int s = 0; s < Level01SectionIds.Length; s++)
+                for (int s = 0; s < sectionIds.Length; s++)
                 {
-                    Transform section = golden.Find(Level01SectionIds[s]);
+                    Transform section = golden.Find(sectionIds[s]);
                     if (section == null || section.childCount < 2)
                     {
-                        problems.Add($"GoldenPath/{Level01SectionIds[s]} needs at least two points.");
+                        problems.Add($"GoldenPath/{sectionIds[s]} needs at least two points.");
                         continue;
                     }
                     var points = new Vector3[section.childCount];
                     for (int i = 0; i < points.Length; i++) points[i] = section.GetChild(i).position;
 
-                    float length = CheckRoute(Level01SectionIds[s], points, Level01AllowedGap[s], problems);
-                    float seconds = length / PlayerWalkSpeed + Level01WaitSeconds[s];
+                    float length = CheckRoute(sectionIds[s], points, spec.AllowedGap[s], problems);
+                    float seconds = length / PlayerWalkSpeed + spec.WaitSeconds[s];
                     totalLength += length;
                     totalSeconds += seconds;
-                    sprintSeconds += length / PlayerSprintSpeed + Level01WaitSeconds[s];
-                    pacing.Append($"\n  {Level01SectionIds[s],-16} path {length,6:0.0} m / {PlayerWalkSpeed:0} m/s = {length / PlayerWalkSpeed,5:0.0} s"
-                                  + $"  + wait {Level01WaitSeconds[s],3:0} s  = {seconds,5:0.0} s");
+                    sprintSeconds += length / PlayerSprintSpeed + spec.WaitSeconds[s];
+                    pacing.Append($"\n  {sectionIds[s],-16} path {length,6:0.0} m / {PlayerWalkSpeed:0} m/s = {length / PlayerWalkSpeed,5:0.0} s"
+                                  + $"  + wait {spec.WaitSeconds[s],3:0} s  = {seconds,5:0.0} s");
                 }
                 pacing.Append($"\n  TOTAL            path {totalLength,6:0.0} m, {totalSeconds:0} s = {totalSeconds / 60f:0.0} min at walking speed"
                               + $" (sprinting everywhere: {sprintSeconds / 60f:0.0} min)");
-                if (totalSeconds < 360f || totalSeconds > 540f) problems.Add($"Pacing estimate {totalSeconds / 60f:0.0} min is outside the 6-9 minute target.");
+                if (totalSeconds < spec.MinSeconds || totalSeconds > spec.MaxSeconds)
+                {
+                    problems.Add($"Pacing estimate {totalSeconds / 60f:0.0} min is outside the {spec.MinSeconds / 60f:0.#}-{spec.MaxSeconds / 60f:0.#} minute target.");
+                }
             }
 
             var summary = new StringBuilder(1024);
-            summary.Append($"[Lantern Keeper] Level01 validation: {problems.Count} problem(s).");
+            summary.Append($"[Lantern Keeper] {spec.SceneName} validation: {problems.Count} problem(s).");
             summary.Append($"\n  {sections.Count} sections, {checkpoints.Count} checkpoints, {ghosts.Count} ghosts with {patrolPoints} patrol points (all on the NavMesh: {(homes.Count == ghosts.Count ? "yes" : "NO")}),");
             summary.Append($" {plates.Count} plates, {gates.Count} gates.");
             if (closestRespawn < float.MaxValue) summary.Append($"\n  Closest patrol point to a respawn point: {closestRespawn:0.0} m. Closest patrol route to a plate: {closestPlate:0.0} m.");

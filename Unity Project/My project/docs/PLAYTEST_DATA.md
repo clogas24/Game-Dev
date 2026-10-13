@@ -12,7 +12,7 @@ C:\Users\<user>\AppData\LocalLow\Carson Logas\Lantern Keeper\playtests\
 
 (`~/Library/Application Support/Carson Logas/Lantern Keeper/playtests/` on macOS, `~/.config/unity3d/Carson Logas/Lantern Keeper/playtests/` on Linux.)
 
-The pause screen and the win screen show the folder and have an **Open playtest folder** button.
+The game itself does not show this folder or offer a way to open it: open it from the file browser.
 
 ## Sessions and file names
 

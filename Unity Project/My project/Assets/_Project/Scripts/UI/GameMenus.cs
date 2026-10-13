@@ -14,7 +14,9 @@ namespace LanternKeeper
     /// and sound sliders set GameAudio.MusicVolume and GameAudio.SfxVolume (also saved).
     /// Menus work with the mouse and with the keyboard alone (arrows / WASD + Enter), because
     /// the first button of each panel is selected when it opens.
-    /// The pause and win screens show where the playtest CSVs are saved and can open the folder.
+    /// The texts follow the scene's place in LevelFlow: the tutorial's title and pause screens
+    /// offer to skip it, and the win screen's button is Continue while a level follows, with
+    /// the level time, and at the end of the run the splits and the run time.
     /// Setup: on a Screen Space Overlay canvas with a GraphicRaycaster, plus an EventSystem with
     /// an InputSystemUIInputModule in the scene. Wire the three panels and their widgets. It
     /// finds GameManager.Instance and the player by itself.
@@ -33,6 +35,8 @@ namespace LanternKeeper
         [Header("Title")]
         [SerializeField, Tooltip("Text filled with the controls list, built from the input bindings.")]
         private TMP_Text controlsLabel;
+        [SerializeField, Tooltip("The 'press any key' line. In the tutorial it also says how to skip. Optional.")]
+        private TMP_Text startHintLabel;
 
         [Header("Pause")]
         [SerializeField, Tooltip("Resumes the game.")]
@@ -41,6 +45,8 @@ namespace LanternKeeper
         private Button restartButton;
         [SerializeField, Tooltip("Quits the game.")]
         private Button quitButton;
+        [SerializeField, Tooltip("Goes straight to level 1. Only shown in the tutorial. Optional.")]
+        private Button skipTutorialButton;
         [SerializeField, Tooltip("Camera sensitivity slider (0.1 to 3).")]
         private Slider sensitivitySlider;
         [SerializeField, Tooltip("Text showing the current sensitivity value.")]
@@ -57,18 +63,12 @@ namespace LanternKeeper
         [Header("Win")]
         [SerializeField, Tooltip("Text filled with time, times extinguished and candle left.")]
         private TMP_Text winStatsLabel;
-        [SerializeField, Tooltip("Restarts the level from the win screen.")]
+        [SerializeField, Tooltip("The win screen's button: Continue while a level follows, New run at the end of the run, Play again elsewhere.")]
         private Button winRestartButton;
-
-        [Header("Playtest data (optional)")]
-        [SerializeField, Tooltip("Pause screen text showing where the playtest CSVs are saved.")]
-        private TMP_Text pauseSavePathLabel;
-        [SerializeField, Tooltip("Pause screen button that opens the playtest folder.")]
-        private Button pauseOpenFolderButton;
-        [SerializeField, Tooltip("Win screen text showing where the playtest CSVs are saved.")]
-        private TMP_Text winSavePathLabel;
-        [SerializeField, Tooltip("Win screen button that opens the playtest folder.")]
-        private Button winOpenFolderButton;
+        [SerializeField, Tooltip("Heading of the win screen. Optional: without it the prefab's text stays.")]
+        private TMP_Text winHeadingLabel;
+        [SerializeField, Tooltip("Line under the win screen's button that names its keys. Optional.")]
+        private TMP_Text winHintLabel;
 
         private GameManager _game;
         private KeyboardCameraLook _cameraLook;
@@ -81,10 +81,17 @@ namespace LanternKeeper
 
             if (resumeButton != null) resumeButton.onClick.AddListener(HandleResume);
             if (restartButton != null) restartButton.onClick.AddListener(HandleRestart);
-            if (winRestartButton != null) winRestartButton.onClick.AddListener(HandleRestart);
+            if (winRestartButton != null) winRestartButton.onClick.AddListener(HandleWinButton);
             if (quitButton != null) quitButton.onClick.AddListener(HandleQuit);
-            if (pauseOpenFolderButton != null) pauseOpenFolderButton.onClick.AddListener(PlaytestLogger.OpenFolder);
-            if (winOpenFolderButton != null) winOpenFolderButton.onClick.AddListener(PlaytestLogger.OpenFolder);
+            if (skipTutorialButton != null)
+            {
+                skipTutorialButton.onClick.AddListener(HandleSkipTutorial);
+                skipTutorialButton.gameObject.SetActive(_game != null && _game.IsTutorial);
+            }
+            if (startHintLabel != null && _game != null && _game.IsTutorial)
+            {
+                startHintLabel.text = "Press any key to start the tutorial  -  Tab skips it";
+            }
 
             if (sensitivitySlider != null)
             {
@@ -132,29 +139,15 @@ namespace LanternKeeper
 
             if (mode == GameMode.Paused)
             {
-                ShowSavePath(pauseSavePathLabel, pauseOpenFolderButton);
                 Select(resumeButton);
             }
             else if (mode == GameMode.Won)
             {
                 if (winStatsLabel != null) winStatsLabel.text = BuildWinText();
-                ShowSavePath(winSavePathLabel, winOpenFolderButton);
+                ShowWinTexts();
                 Select(winRestartButton);
             }
             else Select(null);
-        }
-
-        // Hidden when the scene has no PlaytestLogger.
-        private static void ShowSavePath(TMP_Text label, Button openButton)
-        {
-            PlaytestLogger logger = PlaytestLogger.Instance;
-            bool logging = logger != null && logger.SessionStarted;
-            if (label != null)
-            {
-                label.gameObject.SetActive(logging);
-                if (logging) label.text = $"Playtest data ({logger.Session}) saved to:\n{PlaytestLogger.FolderPath}";
-            }
-            if (openButton != null) openButton.gameObject.SetActive(logging);
         }
 
         private void HandleResume()
@@ -170,6 +163,53 @@ namespace LanternKeeper
         private void HandleQuit()
         {
             if (_game != null) _game.Quit();
+        }
+
+        private void HandleSkipTutorial()
+        {
+            if (_game != null) _game.SkipTutorial();
+        }
+
+        // Continue while a level follows, a new run at the end of the run, a plain restart elsewhere.
+        private void HandleWinButton()
+        {
+            if (_game == null) return;
+            if (_game.HasNextLevel && _game.NextLevel()) return;
+            if (_game.IsTimedLevel && !_game.HasNextLevel && _game.NewRun()) return;
+            _game.Restart();
+        }
+
+        private void ShowWinTexts()
+        {
+            string heading = null;
+            string button = "Play again";
+            string hint = "Press R to play again";
+            if (_game.IsTutorial)
+            {
+                heading = "Tutorial complete!";
+                button = "Start level 1";
+                hint = "Enter starts level 1, where the clock starts  -  R replays the tutorial";
+            }
+            else if (_game.IsTimedLevel && _game.HasNextLevel)
+            {
+                heading = LevelFlow.RunName(_game.RunIndex) + " cleared!";
+                button = "Continue";
+                hint = "Enter continues  -  R restarts this level";
+            }
+            else if (_game.IsTimedLevel)
+            {
+                heading = "Run complete!";
+                button = "New run";
+                hint = "Enter starts a new run  -  R restarts this level";
+            }
+
+            if (winHeadingLabel != null && heading != null) winHeadingLabel.text = heading;
+            if (winHintLabel != null) winHintLabel.text = hint;
+            if (winRestartButton != null)
+            {
+                TMP_Text label = winRestartButton.GetComponentInChildren<TMP_Text>(true);
+                if (label != null) label.text = button;
+            }
         }
 
         private void HandleSensitivityChanged(float value)
@@ -213,12 +253,43 @@ namespace LanternKeeper
 
         private string BuildWinText()
         {
-            int seconds = Mathf.FloorToInt(_game.PlayTime);
             int candle = Mathf.CeilToInt(_game.CandleLeft * 100f);
-            return $"Time  {seconds / 60}:{seconds % 60:00}\n"
-                 + $"Lantern went out  {_game.Deaths} {(_game.Deaths == 1 ? "time" : "times")}\n"
-                 + $"Candle left  {candle}%";
+            if (_game.IsTutorial)
+            {
+                return $"Lantern went out  {Times(_game.Deaths)}\n"
+                     + $"Candle left  {candle}%";
+            }
+            if (!_game.IsTimedLevel)
+            {
+                return $"Time  {LevelFlow.FormatTime(_game.PlayTime)}\n"
+                     + $"Lantern went out  {Times(_game.Deaths)}\n"
+                     + $"Candle left  {candle}%";
+            }
+
+            int index = _game.RunIndex;
+            bool whole = LevelFlow.RunIsWhole(index);
+            var text = new StringBuilder(160);
+            if (_game.HasNextLevel || !whole)
+            {
+                text.Append("Level time  ").Append(LevelFlow.FormatTime(_game.LevelTime)).Append('\n');
+                if (whole && index > 0) text.Append("Run time so far  ").Append(LevelFlow.FormatTime(_game.RunTime)).Append('\n');
+                text.Append("Lantern went out  ").Append(Times(_game.LevelDeaths)).Append('\n');
+            }
+            else
+            {
+                // End of the run: every split, then the total.
+                for (int i = 0; i <= index; i++)
+                {
+                    text.Append(LevelFlow.RunName(i)).Append("  ").Append(LevelFlow.FormatTime(LevelFlow.Split(i))).Append('\n');
+                }
+                text.Append("Run time  ").Append(LevelFlow.FormatTime(_game.RunTime)).Append('\n');
+                text.Append("Lantern went out  ").Append(Times(_game.RunDeaths)).Append('\n');
+            }
+            text.Append("Candle left  ").Append(candle).Append('%');
+            return text.ToString();
         }
+
+        private static string Times(int count) => count == 1 ? "1 time" : count + " times";
 
         // Built once from the bindings, so the list stays right if a key is rebound in the asset.
         private static string BuildControlsText(CandleManager player)

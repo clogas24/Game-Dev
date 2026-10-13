@@ -43,9 +43,12 @@ namespace LanternKeeper
     /// same keys are created in code. It finds the player through CandleManager.Instance.
     /// It runs before other scripts and calls GameEvents.Clear() in Awake, so subscribe to
     /// GameEvents in OnEnable or Start, never in a field initialiser or static constructor.
+    /// The scene order (tutorial, level 1, level 2) and the run clock are in <see cref="LevelFlow"/>;
+    /// this class reads the open scene's place from there, so there is nothing to wire for it.
     /// <code>
     ///   scene load ----------------------> TITLE     (Start At Title, first load)
     ///   scene load after Restart() ------> PLAYING   (title skipped)
+    ///   scene load after NextLevel() ----> PLAYING   (title skipped)
     ///
     ///   TITLE        -- Start (any key / click) after titleInputDelay --> PLAYING
     ///   PLAYING      -- Pause (Esc) ------------------------------------> PAUSED
@@ -54,7 +57,11 @@ namespace LanternKeeper
     ///   EXTINGUISHED -- respawnDelay elapsed (respawn at checkpoint) ---> PLAYING
     ///   PLAYING      -- GoalTrigger reached with the candle lit --------> WON
     ///   PAUSED       -- Restart button ---------------------------------> scene reload
-    ///   WON          -- Restart (R) or Restart button ------------------> scene reload
+    ///   WON          -- Restart (R) ------------------------------------> scene reload
+    ///   WON          -- Continue button (when a level follows) ---------> next scene
+    ///   WON          -- Play again button (end of the run) -------------> level 1, new run
+    ///   TITLE/PAUSED -- Skip (Tab on the title, button when paused),
+    ///                   tutorial only ----------------------------------> level 1
     /// </code>
     /// </summary>
     [DisallowMultipleComponent]
@@ -108,11 +115,12 @@ namespace LanternKeeper
         [SerializeField, Range(0f, 1f), Tooltip("Volume for game-flow sounds.")]
         private float volume = 1f;
 
-        private readonly List<InputAction> _ownedActions = new List<InputAction>(3);
+        private readonly List<InputAction> _ownedActions = new List<InputAction>(4);
         private InputActionMap _gameMap;
         private InputAction _startAction;
         private InputAction _pauseAction;
         private InputAction _restartAction;
+        private InputAction _skipAction;
 
         private CandleManager _candle;
         private Transform _player;
@@ -137,6 +145,8 @@ namespace LanternKeeper
         private bool _fell;
         private int _lastHitFrame = -1;
         private bool _warnedCameraFields;
+        private string _sceneName = string.Empty;
+        private int _runIndex = -1;
 
         /// <summary>Raised on every mode change. Arguments: previous mode, next mode.</summary>
         public event Action<GameMode, GameMode> OnModeChanged;
@@ -148,6 +158,22 @@ namespace LanternKeeper
         public float PlayTime => _playTime;
         /// <summary>How many times the lantern has gone out.</summary>
         public int Deaths => _deaths;
+        /// <summary>True in the tutorial scene: untimed, and it can be skipped.</summary>
+        public bool IsTutorial => LevelFlow.IsTutorial(_sceneName);
+        /// <summary>True in a level of the timed run.</summary>
+        public bool IsTimedLevel => _runIndex >= 0;
+        /// <summary>Position of this scene in the timed run (0 = level 1), or -1.</summary>
+        public int RunIndex => _runIndex;
+        /// <summary>True if winning here leads on to another scene.</summary>
+        public bool HasNextLevel => LevelFlow.NextScene(_sceneName) != null;
+        /// <summary>Seconds spent on this level, restarts included. The same as PlayTime outside the run.</summary>
+        public float LevelTime => LevelFlow.Carried(_runIndex) + _playTime;
+        /// <summary>Seconds since level 1 started: the finished levels plus this one.</summary>
+        public float RunTime => LevelFlow.TimeBefore(_runIndex) + LevelTime;
+        /// <summary>Times the lantern has gone out on this level, restarts included.</summary>
+        public int LevelDeaths => LevelFlow.CarriedDeaths(_runIndex) + _deaths;
+        /// <summary>Times the lantern has gone out since level 1 started.</summary>
+        public int RunDeaths => LevelFlow.DeathsBefore(_runIndex) + LevelDeaths;
         public Checkpoint CurrentCheckpoint => _checkpoint;
         /// <summary>True while playing and at least one ghost is in Notice or Chase.</summary>
         public bool IsEvasion => _evasion;
@@ -167,6 +193,10 @@ namespace LanternKeeper
             Instance = this;
             GameEvents.Clear(); // drop subscribers left over from the previous scene
             Time.timeScale = 1f;
+
+            _sceneName = SceneManager.GetActiveScene().name;
+            _runIndex = LevelFlow.RunIndex(_sceneName);
+            LevelFlow.EnterLevel(_runIndex);
         }
 
         private void Start()
@@ -242,19 +272,60 @@ namespace LanternKeeper
             if (_mode != GameMode.Playing) return false;
             if (_candle != null && !_candle.IsLit) return false;
             Sfx.Play2D(winClip, volume);
+            // Before the mode changes, so the win screen reads the finished split.
+            if (IsTimedLevel) LevelFlow.Finish(_runIndex, LevelTime, LevelDeaths);
             SetMode(GameMode.Won);
             GameEvents.RaiseLevelCompleted();
             return true;
         }
 
-        /// <summary>Reloads the scene and goes straight to Playing.</summary>
+        /// <summary>
+        /// Reloads the scene and goes straight to Playing. In level 1 that is a new run; in a
+        /// later level the run clock keeps the time already spent there.
+        /// </summary>
         public void Restart()
         {
+            if (_runIndex > 0) LevelFlow.KeepTime(_runIndex, LevelTime, LevelDeaths);
             s_skipTitleOnce = true;
             Time.timeScale = 1f;
             Scene scene = SceneManager.GetActiveScene();
             if (scene.buildIndex >= 0) SceneManager.LoadScene(scene.buildIndex);
             else SceneManager.LoadScene(scene.name);
+        }
+
+        /// <summary>Won -> the next scene, straight to Playing. Returns false if nothing follows this scene.</summary>
+        public bool NextLevel()
+        {
+            if (_mode != GameMode.Won) return false;
+            return LoadFlowScene(LevelFlow.NextScene(_sceneName));
+        }
+
+        /// <summary>Won at the end of the run -> level 1 and a new run.</summary>
+        public bool NewRun()
+        {
+            if (_mode != GameMode.Won) return false;
+            return LoadFlowScene(LevelFlow.FirstRunScene);
+        }
+
+        /// <summary>Tutorial only, from the title or the pause screen: straight to level 1.</summary>
+        public bool SkipTutorial()
+        {
+            if (!IsTutorial || (_mode != GameMode.Title && _mode != GameMode.Paused)) return false;
+            return LoadFlowScene(LevelFlow.FirstRunScene);
+        }
+
+        private bool LoadFlowScene(string scene)
+        {
+            if (string.IsNullOrEmpty(scene)) return false;
+            if (!Application.CanStreamedLevelBeLoaded(scene))
+            {
+                Debug.LogWarning($"[GameManager] Scene '{scene}' is not in the build's scene list (File > Build Profiles), so it cannot be loaded.", this);
+                return false;
+            }
+            s_skipTitleOnce = true;
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(scene);
+            return true;
         }
 
         /// <summary>Quits the game (stops Play mode in the Editor).</summary>
@@ -283,15 +354,21 @@ namespace LanternKeeper
             }
 
             float unscaled = Time.unscaledDeltaTime;
+            // The clock does not count a frame that hung (a scene loading in, a hitch): the
+            // run time starts at zero when level 1 appears, not when it started loading.
+            float played = Mathf.Min(unscaled, Time.maximumDeltaTime);
             switch (_mode)
             {
                 case GameMode.Title:
                     _modeTime += unscaled;
-                    if (_modeTime >= titleInputDelay && _startAction.WasPressedThisFrame()) StartGame();
+                    if (_modeTime < titleInputDelay) break;
+                    // Skip is checked first: Start is bound to any key, Tab included.
+                    if (IsTutorial && _skipAction.WasPressedThisFrame() && SkipTutorial()) break;
+                    if (_startAction.WasPressedThisFrame()) StartGame();
                     break;
 
                 case GameMode.Playing:
-                    _playTime += unscaled;
+                    _playTime += played;
                     if (GhostAI.AnyAlert != _evasion) SetEvasion(GhostAI.AnyAlert);
                     if (_player != null && _player.position.y < fallDeathHeight && _candle.IsLit)
                     {
@@ -306,7 +383,7 @@ namespace LanternKeeper
                     break;
 
                 case GameMode.Extinguished:
-                    _playTime += unscaled;
+                    _playTime += played;
                     _modeTime += Time.deltaTime;
                     if (_modeTime >= respawnDelay) Respawn();
                     break;
@@ -534,6 +611,7 @@ namespace LanternKeeper
             _startAction = ResolveAction("Start", "<Keyboard>/anyKey", "<Mouse>/leftButton");
             _pauseAction = ResolveAction("Pause", "<Keyboard>/escape", null);
             _restartAction = ResolveAction("Restart", "<Keyboard>/r", null);
+            _skipAction = ResolveAction("SkipTutorial", "<Keyboard>/tab", null);
             if (_gameMap != null) _gameMap.Enable();
         }
 

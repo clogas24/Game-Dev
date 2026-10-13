@@ -119,7 +119,8 @@ namespace LanternKeeper.EditorTools
         }
 
         /// <summary>Everything needed while the dressing is built: the scene's groups, the models, counters.</summary>
-        private sealed class Level01Dresser
+        // Level01's scenery is below. The tutorial's and Level02's are in LanternKeeperSetup.DressLevels.cs.
+        private sealed partial class Level01Dresser
         {
             private sealed class ModelPart
             {
@@ -152,7 +153,11 @@ namespace LanternKeeper.EditorTools
 
             // ------------------------------------------------------------------ set-up
 
-            public bool Begin()
+            /// <param name="tuneMaterials">
+            /// False leaves the M_LK_* material assets alone. The tutorial and Level02 use that:
+            /// they share the materials and must not change Level01's colours.
+            /// </param>
+            public bool Begin(bool tuneMaterials = true)
             {
                 GameObject environment = FindRoot(_scene, "Environment");
                 if (environment == null)
@@ -170,6 +175,13 @@ namespace LanternKeeper.EditorTools
                 _palette = Mat("M_LK_Palette");
                 _kenney = Mat("M_KenneyGraveyard");
                 _cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+                if (!tuneMaterials)
+                {
+                    _water = Mat("M_LK_Water");
+                    _outerGround = Mat("M_LK_OuterGround");
+                    _pitWall = Mat("M_LK_PitWall");
+                    return true;
+                }
 
                 // The greybox colour code, kept but tuned for night: ground stays the darkest
                 // neutral, water is blue, deadly pits glow dull red, the goal is warm orange.
@@ -1203,7 +1215,7 @@ namespace LanternKeeper.EditorTools
 
                 // Corn walls: the dark block stays as the dense heart of the row (it is what hides
                 // the player from a ghost), and stalks stand along both faces and out of the top.
-                foreach (string name in new[] { "S5_Corn_1", "S5_Corn_2a", "S5_Corn_2b", "S5_Corn_3a", "S5_Corn_3b", "S5_Corn_4a", "S5_Corn_4b", "S5_Corn_5a", "S5_Corn_5b" })
+                foreach (string name in new[] { "S5_Corn_1", "S5_Corn_2a", "S5_Corn_2b", "S5_Corn_2c", "S5_Corn_3a", "S5_Corn_3b", "S5_Corn_3c", "S5_Corn_4a", "S5_Corn_4b", "S5_Corn_5a", "S5_Corn_5b" })
                 {
                     if (!Block(name, out Bounds row)) continue;
                     foreach (float z in new[] { row.min.z + 0.12f, row.max.z - 0.12f })

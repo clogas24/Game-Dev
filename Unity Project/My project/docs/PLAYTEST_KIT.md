@@ -36,7 +36,7 @@ Rules for me while they play:
 - Keep a neutral face. Do not react to deaths or to solutions.
 - If they want to stop, let them. Ask them to use **Esc > Quit** so the data is saved (closing the window also saves it).
 
-Afterwards: press Esc (or look at the win screen) and copy the id shown after "Playtest data" onto the observation sheet and the survey. Then hand over the survey before discussing anything. Then ask, "Is there anything you wanted to tell me that the survey did not ask?" Finally, open the playtest folder (Pause or win screen > **Open playtest folder**) and check that both CSV files for their id are there.
+Afterwards: open the playtest folder in the file browser (the path is in PLAYTEST_DATA.md) and copy the id from the newest file names onto the observation sheet and the survey. Then hand over the survey before discussing anything. Then ask, "Is there anything you wanted to tell me that the survey did not ask?" Finally, check that both CSV files for their id are in that folder.
 
 ## Observation sheet
 
