@@ -8,7 +8,7 @@ namespace LanternKeeper.EditorTools
 {
     /// <summary>
     /// "Lantern Keeper/Build Playtest (Windows)": a release (non-development) Windows build of
-    /// Level01 for playtesters, zipped and ready to hand out. Being a non-development build, the
+    /// the game (tutorial, Level01, Level02) for playtesters, zipped and ready to hand out. Being a non-development build, the
     /// F1 debug overlay is compiled out; the playtest logger still runs.
     /// Batch mode, Editor closed:
     /// <code>
@@ -20,6 +20,13 @@ namespace LanternKeeper.EditorTools
     public static class LanternKeeperBuild
     {
         private const string Level01ScenePath = "Assets/_Project/Scenes/Level01_PumpkinPatch.unity";
+        // In play order: the game starts in the first one that exists. LevelFlow.cs has the same order.
+        private static readonly string[] GameScenePaths =
+        {
+            "Assets/_Project/Scenes/Level00_Tutorial.unity",
+            Level01ScenePath,
+            "Assets/_Project/Scenes/Level02_Orchard.unity"
+        };
         private const string CompanyName = "Carson Logas";
         private const string ProductName = "Lantern Keeper";
         private const string Version = "0.2.0";
@@ -67,7 +74,7 @@ namespace LanternKeeper.EditorTools
 
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { Level01ScenePath }, // the playtest build is the level only; the sandbox stays out
+                scenes = GameScenes(), // the playtest build is the game's own scenes; the sandbox stays out
                 locationPathName = WindowsExe,
                 target = BuildTarget.StandaloneWindows64,
                 targetGroup = BuildTargetGroup.Standalone,
@@ -86,6 +93,16 @@ namespace LanternKeeper.EditorTools
             long zipBytes = new FileInfo(WindowsZip).Length;
             Debug.Log($"[Lantern Keeper] Playtest build ready: {WindowsExe}\n[Lantern Keeper] Zip: {WindowsZip} ({zipBytes / (1024f * 1024f):0.0} MB)");
             return true;
+        }
+
+        private static string[] GameScenes()
+        {
+            var scenes = new System.Collections.Generic.List<string>(GameScenePaths.Length);
+            foreach (string path in GameScenePaths)
+            {
+                if (File.Exists(path)) scenes.Add(path);
+            }
+            return scenes.ToArray();
         }
 
         // Player settings and scene order shared by every build.
@@ -124,7 +141,7 @@ namespace LanternKeeper.EditorTools
 
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { Level01ScenePath },
+                scenes = GameScenes(),
                 locationPathName = location,
                 target = target,
                 targetGroup = BuildTargetGroup.Standalone,

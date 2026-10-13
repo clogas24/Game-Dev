@@ -161,33 +161,42 @@ Notes that match the code:
 ```mermaid
 stateDiagram-v2
     [*] --> Title: scene loaded, startAtTitle
-    [*] --> Playing: scene loaded after Restart
+    [*] --> Playing: scene loaded after Restart, Continue, New run or Skip tutorial
 
     Title --> Playing: Start pressed (any key or click) after titleInputDelay (0.3 s)
     Playing --> Paused: Pause pressed (Esc)
     Paused --> Playing: Pause pressed (Esc) or Resume button
-    Playing --> Extinguished: candle reaches 0, or player below fallDeathHeight (-25 m, -4 m in Level01)
+    Playing --> Extinguished: candle reaches 0, or player below fallDeathHeight (-25 m by default, -1.3 m in the levels: below the water's surface, above the dry ditch)
     Extinguished --> Playing: respawnDelay (2 s) elapsed, respawn at checkpoint
     Playing --> Won: GoalTrigger reached with candle lit
 
     Paused --> [*]: Restart button (scene reload) or Quit button
-    Won --> [*]: Restart pressed (R) or Play again button (scene reload)
+    Won --> [*]: Restart pressed (R) (scene reload)
+    Won --> [*]: Continue button (next scene), or New run button after the last level (level 1)
+    Title --> [*]: Skip pressed (Tab), tutorial only (level 1)
+    Paused --> [*]: Skip tutorial button, tutorial only (level 1)
 ```
+
+The scenes play in the order `Level00_Tutorial` -> `Level01_PumpkinPatch` -> `Level02_Orchard`, held in `LevelFlow`. The tutorial is untimed. The run clock (`GameManager.RunTime`) starts when level 1 starts and is the finished levels' times plus the current level's; it only counts in Playing and Extinguished. Restarting level 1 starts a new run; restarting level 2 keeps the time already spent there.
 
 ### Game mode transition table
 
 | From | To | Condition | Code location |
 |---|---|---|---|
-| (scene load) | Title | `startAtTitle` is true and this load was not caused by `Restart()` | `GameManager.Start` |
-| (scene load) | Playing | `startAtTitle` is false, or the scene was reloaded by `Restart()` | `GameManager.Start` |
+| (scene load) | Title | `startAtTitle` is true and this load was not caused by `Restart()`, `NextLevel()`, `NewRun()` or `SkipTutorial()` | `GameManager.Start` |
+| (scene load) | Playing | `startAtTitle` is false, or the scene was loaded by `Restart()`, `NextLevel()`, `NewRun()` or `SkipTutorial()` | `GameManager.Start` |
 | Title | Playing | `Start` action pressed (any key or left click) at least `titleInputDelay` (0.3 s, unscaled) after loading | `GameManager.Update` -> `StartGame` |
 | Playing | Paused | `Pause` action pressed (Esc) | `GameManager.Update` -> `Pause` |
 | Paused | Playing | `Pause` action pressed (Esc), or the Resume button | `GameManager.Update` -> `Resume`; `GameMenus.HandleResume` |
-| Playing | Extinguished | `CandleManager.OnExtinguished` (candle reached 0). Also raised when the player falls below `fallDeathHeight` (-25 m by default, -4 m in Level01), which sets the candle to 0. `LastExtinguishCause` is set first: Fell, GhostHit, FlaredOut or Drained | `GameManager.HandleExtinguished`; fall check in `GameManager.Update` |
+| Playing | Extinguished | `CandleManager.OnExtinguished` (candle reached 0). Also raised when the player falls below `fallDeathHeight` (-25 m by default, -1.3 m in the levels, so water and pits both count), which sets the candle to 0. `LastExtinguishCause` is set first: Fell, GhostHit, FlaredOut or Drained | `GameManager.HandleExtinguished`; fall check in `GameManager.Update` |
 | Extinguished | Playing | `respawnDelay` (2 s) elapsed: `Respawn()` teleports to the last checkpoint (or the start), cuts the camera to face the way the respawn point faces, sets the candle to at least `minCandleOnRespawn` (60%), resets knockback, clears all candy (landed or in the air), resets every ghost, then resets plates and gates (latched plates and gates that stay open once opened are left alone), and raises `GameEvents.PlayerRespawned` | `GameManager.Update` -> `Respawn`; `Candy.ClearAll`, `PressurePlate.ResetForRespawn`, `Gate.ResetForRespawn` |
 | Playing | Won | `GoalTrigger.OnTriggerEnter` with the candle lit calls `Win()`; raises `GameEvents.LevelCompleted` | `GoalTrigger.OnTriggerEnter` -> `GameManager.Win` |
 | Paused | scene reload | Restart button | `GameMenus.HandleRestart` -> `GameManager.Restart` |
-| Won | scene reload | `Restart` action pressed (R), or the Play again button | `GameManager.Update` -> `Restart`; `GameMenus.HandleRestart` |
+| Won | scene reload | `Restart` action pressed (R). In a scene outside the level order (the Sandbox) the Play again button does the same | `GameManager.Update` -> `Restart`; `GameMenus.HandleWinButton` |
+| Won | next scene | The win screen's button while a scene follows this one (tutorial -> level 1 -> level 2); it reads "Start level 1" or "Continue" | `GameMenus.HandleWinButton` -> `GameManager.NextLevel` |
+| Won | level 1 (new run) | The win screen's button after the last level; it reads "New run" | `GameMenus.HandleWinButton` -> `GameManager.NewRun` |
+| Title | level 1 | Tutorial only: `SkipTutorial` action pressed (Tab), checked before `Start` | `GameManager.Update` -> `SkipTutorial` |
+| Paused | level 1 | Tutorial only: the Skip tutorial button | `GameMenus.HandleSkipTutorial` -> `GameManager.SkipTutorial` |
 | Paused | quit | Quit button. Raises `GameEvents.QuitRequested` first, so the playtest logger saves | `GameMenus.HandleQuit` -> `GameManager.Quit` |
 
 ### What each mode sets (`GameManager.EnterMode`)

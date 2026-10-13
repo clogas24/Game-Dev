@@ -1,4 +1,5 @@
 using TMPro;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -14,6 +15,25 @@ namespace LanternKeeper.EditorTools
     // the smallest text here, 24, is still 16 px tall there.
     public static partial class LanternKeeperSetup
     {
+        /// <summary>
+        /// Regenerates only the HUD and GameMenus prefabs (in place: scenes keep their instances).
+        /// "Create Placeholder Assets" and "Create World Prefabs" do the same as part of a full run.
+        /// </summary>
+        [MenuItem(Menu + "Create UI Prefabs", priority = 6)]
+        public static void CreateUiPrefabs()
+        {
+            if (!EnsureTmpEssentials())
+            {
+                Debug.LogWarning("[Lantern Keeper] UI prefabs skipped: TMP Essential Resources are still importing. Run this menu item again.");
+                return;
+            }
+            EnsureFolder(PrefabsDir);
+            CreateHudPrefab();
+            CreateGameMenusPrefab();
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Lantern Keeper] HUD and GameMenus prefabs created.");
+        }
+
         private static TextMeshProUGUI AsTitle(TextMeshProUGUI label)
         {
             TMP_FontAsset font = TitleFont();
@@ -90,6 +110,14 @@ namespace LanternKeeper.EditorTools
             TextMeshProUGUI candyLabel = NewText(candyRect, "Candy 0/5", 32f, TextAlignmentOptions.Left);
             candyLabel.color = UiBone;
 
+            // Run clock, top-right. HUD.cs hides it outside the timed levels.
+            RectTransform timerRect = NewRect("RunTimer", root.transform, Vector2.one, Vector2.one, new Vector2(1f, 1f),
+                new Vector2(-36f, -28f), new Vector2(260f, 68f));
+            NewImage(timerRect, "UI_Rounded", new Color(0.04f, 0.02f, 0.08f, 0.6f), true);
+            TextMeshProUGUI timerLabel = NewText(NewStretched("RunTimerLabel", timerRect, new Vector2(16f, 4f), new Vector2(16f, 4f)),
+                "0:00.0", 44f, TextAlignmentOptions.Center);
+            timerLabel.color = UiBone;
+
             // Centre prompt on a dark band, so it reads over a bright flare as well as over the night.
             RectTransform promptRect = NewRect("Prompt", root.transform, new Vector2(0.5f, 0.28f), new Vector2(0.5f, 0.28f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1400f, 130f));
@@ -144,6 +172,8 @@ namespace LanternKeeper.EditorTools
             SetRef(hud, "candleFlame", flame.gameObject);
             SetRef(hud, "candleLabel", candleLabel);
             SetRef(hud, "candyLabel", candyLabel);
+            SetRef(hud, "timerLabel", timerLabel);
+            SetRef(hud, "timerRoot", timerRect.gameObject);
             SetRef(hud, "promptLabel", promptLabel);
             SetRef(hud, "promptGroup", promptGroup);
 
@@ -189,41 +219,40 @@ namespace LanternKeeper.EditorTools
                 "Cross the haunted patch before your candle burns out.", 36f, TextAlignmentOptions.Center).color = UiBone;
             TextMeshProUGUI controls = NewText(NewAnchored("Controls", title, 0.41f, new Vector2(1100f, 400f)), "", 32f, TextAlignmentOptions.Center);
             controls.color = UiBone;
-            NewText(NewAnchored("PressAnyKey", title, 0.12f, new Vector2(1600f, 60f)),
-                "Press any key to start", 42f, TextAlignmentOptions.Center).color = UiOrangeLight;
+            // GameMenus.cs adds how to skip to this line in the tutorial.
+            TextMeshProUGUI startHint = NewText(NewAnchored("PressAnyKey", title, 0.12f, new Vector2(1600f, 60f)),
+                "Press any key to start", 42f, TextAlignmentOptions.Center);
+            startHint.color = UiOrangeLight;
 
             // Pause
             RectTransform pause = NewPanel("PausePanel", root.transform, new Color(0.03f, 0.015f, 0.06f, 0.86f));
-            AsTitle(NewText(NewAnchored("PauseHeading", pause, 0.9f, new Vector2(1200f, 140f)), "Paused", 116f, TextAlignmentOptions.Center))
+            AsTitle(NewText(NewAnchored("PauseHeading", pause, 0.915f, new Vector2(1200f, 140f)), "Paused", 116f, TextAlignmentOptions.Center))
                 .color = UiOrange;
-            Button resume = NewButton("ResumeButton", pause, 0.785f, "Resume");
-            Button restart = NewButton("RestartButton", pause, 0.705f, "Restart");
-            Button quit = NewButton("QuitButton", pause, 0.625f, "Quit");
-            Slider slider = NewSliderRow("Sensitivity", pause, 0.525f, "Camera sensitivity", 0.1f, 3f, 1f, "1.0", out TextMeshProUGUI sensitivityValue);
-            Slider music = NewSliderRow("Music", pause, 0.46f, "Music volume", 0f, 1f, GameAudio.DefaultMusicVolume, "70%", out TextMeshProUGUI musicValue);
-            Slider sfx = NewSliderRow("Sfx", pause, 0.395f, "Sound volume", 0f, 1f, GameAudio.DefaultSfxVolume, "90%", out TextMeshProUGUI sfxValue);
+            Button resume = NewButton("ResumeButton", pause, 0.81f, "Resume");
+            Button restart = NewButton("RestartButton", pause, 0.735f, "Restart");
+            Button quit = NewButton("QuitButton", pause, 0.66f, "Quit");
+            // Last of the four, so the other three do not move when GameMenus.cs hides it outside the tutorial.
+            Button skipTutorial = NewButton("SkipTutorialButton", pause, 0.585f, "Skip tutorial");
+            Slider slider = NewSliderRow("Sensitivity", pause, 0.5f, "Camera sensitivity", 0.1f, 3f, 1f, "1.0", out TextMeshProUGUI sensitivityValue);
+            Slider music = NewSliderRow("Music", pause, 0.44f, "Music volume", 0f, 1f, GameAudio.DefaultMusicVolume, "70%", out TextMeshProUGUI musicValue);
+            Slider sfx = NewSliderRow("Sfx", pause, 0.38f, "Sound volume", 0f, 1f, GameAudio.DefaultSfxVolume, "90%", out TextMeshProUGUI sfxValue);
             NewText(NewAnchored("PauseHint", pause, 0.315f, new Vector2(1400f, 50f)),
                 "Esc resumes  -  arrow keys and Enter work in this menu", 26f, TextAlignmentOptions.Center).color = soft;
-            TextMeshProUGUI pauseSavePath = NewText(NewAnchored("PauseSavePath", pause, 0.215f, new Vector2(1800f, 80f)), "", 24f, TextAlignmentOptions.Center);
-            pauseSavePath.color = soft;
-            Button pauseOpenFolder = NewButton("PauseOpenFolderButton", pause, 0.105f, "Open playtest folder");
-            ((RectTransform)pauseOpenFolder.transform).sizeDelta = new Vector2(520f, 70f);
 
             // Win. The panel fades in (UiFadeIn) instead of snapping on.
             RectTransform win = NewPanel("WinPanel", root.transform, new Color(0.07f, 0.035f, 0.02f, 0.9f));
             win.gameObject.AddComponent<CanvasGroup>();
             win.gameObject.AddComponent<UiFadeIn>();
-            AsTitle(NewText(NewAnchored("WinHeading", win, 0.82f, new Vector2(1800f, 150f)), "You reached the farmhouse!", 104f, TextAlignmentOptions.Center))
-                .color = UiOrange;
-            TextMeshProUGUI stats = NewText(NewAnchored("Stats", win, 0.6f, new Vector2(1200f, 240f)), "", 44f, TextAlignmentOptions.Center);
+            // GameMenus.cs sets the heading, the button's label and the hint from the scene's place in LevelFlow.
+            TextMeshProUGUI winHeading = AsTitle(NewText(NewAnchored("WinHeading", win, 0.83f, new Vector2(1800f, 150f)), "You reached the farmhouse!", 104f, TextAlignmentOptions.Center));
+            winHeading.color = UiOrange;
+            // Tall enough for the end of the run: two splits, the run time, times extinguished, candle left.
+            TextMeshProUGUI stats = NewText(NewAnchored("Stats", win, 0.6f, new Vector2(1200f, 300f)), "", 44f, TextAlignmentOptions.Center);
             stats.color = UiBone;
             Button winRestart = NewButton("PlayAgainButton", win, 0.41f, "Play again");
-            NewText(NewAnchored("WinHint", win, 0.32f, new Vector2(1400f, 50f)),
-                "Press R to play again", 30f, TextAlignmentOptions.Center).color = soft;
-            TextMeshProUGUI winSavePath = NewText(NewAnchored("WinSavePath", win, 0.2f, new Vector2(1800f, 80f)), "", 24f, TextAlignmentOptions.Center);
-            winSavePath.color = soft;
-            Button winOpenFolder = NewButton("WinOpenFolderButton", win, 0.09f, "Open playtest folder");
-            ((RectTransform)winOpenFolder.transform).sizeDelta = new Vector2(520f, 70f);
+            TextMeshProUGUI winHint = NewText(NewAnchored("WinHint", win, 0.32f, new Vector2(1600f, 50f)),
+                "Press R to play again", 30f, TextAlignmentOptions.Center);
+            winHint.color = soft;
 
             // GameMenus shows the right panel in Start; saved hidden so nothing flashes.
             title.gameObject.SetActive(false);
@@ -235,9 +264,11 @@ namespace LanternKeeper.EditorTools
             SetRef(menus, "pausePanel", pause.gameObject);
             SetRef(menus, "winPanel", win.gameObject);
             SetRef(menus, "controlsLabel", controls);
+            SetRef(menus, "startHintLabel", startHint);
             SetRef(menus, "resumeButton", resume);
             SetRef(menus, "restartButton", restart);
             SetRef(menus, "quitButton", quit);
+            SetRef(menus, "skipTutorialButton", skipTutorial);
             SetRef(menus, "sensitivitySlider", slider);
             SetRef(menus, "sensitivityValueLabel", sensitivityValue);
             SetRef(menus, "musicSlider", music);
@@ -246,10 +277,8 @@ namespace LanternKeeper.EditorTools
             SetRef(menus, "sfxValueLabel", sfxValue);
             SetRef(menus, "winStatsLabel", stats);
             SetRef(menus, "winRestartButton", winRestart);
-            SetRef(menus, "pauseSavePathLabel", pauseSavePath);
-            SetRef(menus, "pauseOpenFolderButton", pauseOpenFolder);
-            SetRef(menus, "winSavePathLabel", winSavePath);
-            SetRef(menus, "winOpenFolderButton", winOpenFolder);
+            SetRef(menus, "winHeadingLabel", winHeading);
+            SetRef(menus, "winHintLabel", winHint);
 
             var sounds = root.AddComponent<UiSounds>();
             SetClip(sounds, "hoverClip", "ThirdParty/KenneyInterfaceSounds/tick_001");

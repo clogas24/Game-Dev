@@ -7,7 +7,8 @@ namespace LanternKeeper
 {
     /// <summary>
     /// In-game HUD: candle meter (a candle that burns down, shifts orange to red and pulses when low), candy
-    /// count, and a centre prompt that fades in and out.
+    /// count, a centre prompt that fades in and out, and the run clock (GameManager.RunTime),
+    /// which is only shown in the timed levels.
     /// Prompt text may contain {flare}, {throw} and {jump}; they are replaced with the name of
     /// the control bound to that action for the control scheme the player last used, read from
     /// the PlayerInput bindings, so prompts stay right if a binding or device changes.
@@ -42,6 +43,12 @@ namespace LanternKeeper
         [SerializeField, Tooltip("Text showing candy held / max.")]
         private TMP_Text candyLabel;
 
+        [Header("Run clock")]
+        [SerializeField, Tooltip("Text showing the run time. Optional.")]
+        private TMP_Text timerLabel;
+        [SerializeField, Tooltip("The run clock's whole box (text and background). Hidden outside the timed levels. Empty = the text's own object.")]
+        private GameObject timerRoot;
+
         [Header("Prompt")]
         [SerializeField, Tooltip("Centre-screen prompt text.")]
         private TMP_Text promptLabel;
@@ -73,6 +80,8 @@ namespace LanternKeeper
         private string _promptTemplate;
         private string _promptScheme;
         private float _promptTimer;
+        private GameManager _game;
+        private int _shownTenths = -1;
 
         private void Awake()
         {
@@ -107,6 +116,10 @@ namespace LanternKeeper
                 candyLabel.SetText("Candy -");
             }
 
+            _game = GameManager.Instance;
+            if (timerRoot == null && timerLabel != null) timerRoot = timerLabel.gameObject;
+            if (timerRoot != null) timerRoot.SetActive(_game != null && _game.IsTimedLevel);
+
             if (!string.IsNullOrEmpty(startPrompt)) ShowPrompt(startPrompt, startPromptSeconds);
         }
 
@@ -140,6 +153,17 @@ namespace LanternKeeper
             {
                 float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * pulseSpeed * Mathf.PI * 2f);
                 candleFillImage.color = Color.Lerp(BarColor(_normalized), Color.white, pulse * pulseStrength);
+            }
+
+            if (timerLabel != null && _game != null && _game.IsTimedLevel)
+            {
+                // The text only changes ten times a second, so that is how often it is rebuilt.
+                int tenths = Mathf.FloorToInt(_game.RunTime * 10f);
+                if (tenths != _shownTenths)
+                {
+                    _shownTenths = tenths;
+                    timerLabel.text = LevelFlow.FormatTime(_game.RunTime);
+                }
             }
 
             if (promptGroup == null) return;
