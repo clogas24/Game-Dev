@@ -10,6 +10,8 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UTimeAbilityComponent;
+class UTimeSandComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -30,7 +32,15 @@ class AStopwatchCharacter : public ACharacter
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
-	
+
+	/** The resource spent by time abilities */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UTimeSandComponent* TimeSand;
+
+	/** Freeze and the other time abilities */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UTimeAbilityComponent* TimeAbility;
+
 protected:
 
 	/** Jump Input Action */
@@ -92,5 +102,11 @@ public:
 
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Returns TimeSand subobject **/
+	FORCEINLINE UTimeSandComponent* GetTimeSand() const { return TimeSand; }
+
+	/** Returns TimeAbility subobject **/
+	FORCEINLINE UTimeAbilityComponent* GetTimeAbility() const { return TimeAbility; }
 };
 
