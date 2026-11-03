@@ -9,16 +9,23 @@
 class UTimeableComponent;
 class UTimeSandComponent;
 
-/** What the player is currently aiming at, as far as Freeze is concerned */
+/** What the player can do to what they're currently aiming at */
 UENUM(BlueprintType)
-enum class EFreezeAimState : uint8
+enum class ETimeAimState : uint8
 {
 	NoTarget,
-	Affordable,
+
+	/** Can be frozen, and maybe rewound too */
+	CanFreeze,
+
+	RewindOnly,
+
+	/** A valid target, but the player can't pay for anything it allows */
 	Unaffordable
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFreezeAimStateChanged, EFreezeAimState, AimState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAimStateChanged, ETimeAimState, AimState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTimeAbilityUsed);
 
 /**
  *  The player's time abilities, paid for with the owner's UTimeSandComponent
@@ -38,17 +45,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Freeze", meta=(ClampMin="0.1"))
 	float FreezeDuration = 5.0f;
 
-	/** How far from the camera Freeze can reach */
+	/** How far from the camera Freeze and Rewind can reach */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Freeze", meta=(ClampMin="0"))
 	float FreezeRange = 3000.0f;
 
-	/** Sand that Rewind will cost. Unused until Rewind exists, but the HUD already shows it */
+	/** Sand charged when a rewind actually starts */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rewind", meta=(ClampMin="0"))
 	float RewindSandCost = 35.0f;
 
 	/** Called when the aim state changes */
 	UPROPERTY(BlueprintAssignable, Category="Freeze")
-	FOnFreezeAimStateChanged OnFreezeAimStateChanged;
+	FOnAimStateChanged OnAimStateChanged;
+
+	/** Called when a Freeze or Rewind succeeds */
+	UPROPERTY(BlueprintAssignable, Category="Freeze")
+	FOnTimeAbilityUsed OnAbilityUsed;
 
 	/** Constructor */
 	UTimeAbilityComponent();
@@ -61,8 +72,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Freeze")
 	bool TryFreezeTarget(UTimeableComponent* Target);
 
+	/** Rewinds whatever the player is aiming at */
+	UFUNCTION(BlueprintCallable, Category="Rewind")
+	bool TryRewind();
+
+	/** Rewinds the target, charging sand only if the rewind actually starts */
+	UFUNCTION(BlueprintCallable, Category="Rewind")
+	bool TryRewindTarget(UTimeableComponent* Target);
+
 	UFUNCTION(BlueprintPure, Category="Freeze")
-	EFreezeAimState GetAimState() const { return AimState; }
+	ETimeAimState GetAimState() const { return AimState; }
+
+	/** Returns the target under the crosshair as of the last tick, if any */
+	UTimeableComponent* GetAimTarget() const { return AimTarget.Get(); }
 
 protected:
 
@@ -71,8 +93,9 @@ protected:
 
 private:
 
-	/** Returns the freezable target under the crosshair, if any */
+	/** Returns the timeable target under the crosshair, if any */
 	UTimeableComponent* FindAimTarget() const;
 
-	EFreezeAimState AimState = EFreezeAimState::NoTarget;
+	ETimeAimState AimState = ETimeAimState::NoTarget;
+	TWeakObjectPtr<UTimeableComponent> AimTarget;
 };

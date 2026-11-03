@@ -15,12 +15,14 @@
 namespace
 {
 	const FLinearColor CrosshairDefault(1.0f, 1.0f, 1.0f, 0.9f);
-	const FLinearColor CrosshairAffordable(0.3f, 0.8f, 1.0f, 1.0f);
+	const FLinearColor CrosshairCanFreeze(0.3f, 0.8f, 1.0f, 1.0f);
+	const FLinearColor CrosshairRewindOnly(1.0f, 0.6f, 0.1f, 1.0f);
 	const FLinearColor CrosshairUnaffordable(0.25f, 0.25f, 0.25f, 0.8f);
 	const FLinearColor SandColor(0.9f, 0.65f, 0.2f, 1.0f);
 	const FLinearColor FlashColor(0.9f, 0.05f, 0.05f, 1.0f);
 
-	const float CrosshairSize = 8.0f;
+	const FLinearColor DotOutlineColor(0.0f, 0.0f, 0.0f, 0.85f);
+	const float DotOutlineWidth = 1.0f;
 	const FVector2D BarPosition(32.0f, -56.0f);
 	const FVector2D BarSize(320.0f, 24.0f);
 	const float TickWidth = 2.0f;
@@ -40,12 +42,15 @@ void UStopwatchHUDWidget::NativeOnInitialized()
 	const FAnchors BottomLeft(0.0f, 1.0f);
 
 	Crosshair = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	Crosshair->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White, CrosshairSize * 0.5f));
+
+	// the outline is drawn inside the brush, and the tint colors the white fill but leaves the black outline black
+	const float DotOuterSize = DotSize + DotOutlineWidth * 2.0f;
+	Crosshair->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White, DotOuterSize * 0.5f, DotOutlineColor, DotOutlineWidth));
 	Crosshair->SetColorAndOpacity(CrosshairDefault);
 	UCanvasPanelSlot* CrosshairSlot = Canvas->AddChildToCanvas(Crosshair);
 	CrosshairSlot->SetAnchors(FAnchors(0.5f, 0.5f));
 	CrosshairSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-	CrosshairSlot->SetSize(FVector2D(CrosshairSize, CrosshairSize));
+	CrosshairSlot->SetSize(FVector2D(DotOuterSize, DotOuterSize));
 
 	SandBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass());
 	SandBar->SetFillColorAndOpacity(SandColor);
@@ -70,7 +75,7 @@ void UStopwatchHUDWidget::NativeOnInitialized()
 		TickSlot->SetSize(FVector2D(TickWidth, BarSize.Y + TickOverhang * 2.0f));
 	}
 
-	FreezeTick->SetColorAndOpacity(CrosshairAffordable);
+	FreezeTick->SetColorAndOpacity(CrosshairCanFreeze);
 	RewindTick->SetColorAndOpacity(FLinearColor::White);
 }
 
@@ -81,7 +86,8 @@ void UStopwatchHUDWidget::BindTo(UTimeSandComponent* Sand, UTimeAbilityComponent
 
 	Sand->OnSandChanged.AddUniqueDynamic(this, &UStopwatchHUDWidget::HandleSandChanged);
 	Sand->OnSpendFailed.AddUniqueDynamic(this, &UStopwatchHUDWidget::HandleSpendFailed);
-	Ability->OnFreezeAimStateChanged.AddUniqueDynamic(this, &UStopwatchHUDWidget::HandleAimStateChanged);
+	Ability->OnAimStateChanged.AddUniqueDynamic(this, &UStopwatchHUDWidget::HandleAimStateChanged);
+	Ability->OnAbilityUsed.AddUniqueDynamic(this, &UStopwatchHUDWidget::Pop);
 
 	HandleSandChanged(Sand->GetCurrentSand(), Sand->MaxSand);
 	HandleAimStateChanged(Ability->GetAimState());
@@ -111,26 +117,61 @@ void UStopwatchHUDWidget::UpdateCostTick(UImage* Tick, float Cost, float Current
 void UStopwatchHUDWidget::HandleSpendFailed()
 {
 	SandBar->SetFillColorAndOpacity(FlashColor);
+	Crosshair->SetColorAndOpacity(FlashColor);
 	GetWorld()->GetTimerManager().SetTimer(FlashTimer, this, &UStopwatchHUDWidget::EndFlash, FlashSeconds);
 }
 
 void UStopwatchHUDWidget::EndFlash()
 {
 	SandBar->SetFillColorAndOpacity(SandColor);
+	Crosshair->SetColorAndOpacity(AimColor);
 }
 
-void UStopwatchHUDWidget::HandleAimStateChanged(EFreezeAimState AimState)
+void UStopwatchHUDWidget::HandleAimStateChanged(ETimeAimState AimState)
 {
 	switch (AimState)
 	{
-	case EFreezeAimState::Affordable:
-		Crosshair->SetColorAndOpacity(CrosshairAffordable);
+	case ETimeAimState::CanFreeze:
+		AimColor = CrosshairCanFreeze;
 		break;
-	case EFreezeAimState::Unaffordable:
-		Crosshair->SetColorAndOpacity(CrosshairUnaffordable);
+	case ETimeAimState::RewindOnly:
+		AimColor = CrosshairRewindOnly;
+		break;
+	case ETimeAimState::Unaffordable:
+		AimColor = CrosshairUnaffordable;
 		break;
 	default:
-		Crosshair->SetColorAndOpacity(CrosshairDefault);
+		AimColor = CrosshairDefault;
 		break;
 	}
+
+	// looking away mustn't cut a red tint short
+	if (!GetWorld()->GetTimerManager().IsTimerActive(FlashTimer))
+	{
+		Crosshair->SetColorAndOpacity(AimColor);
+	}
+
+	Pop();
+}
+
+void UStopwatchHUDWidget::Pop()
+{
+	// a render transform, so the dot grows around the screen center without touching the layout
+	Crosshair->SetRenderScale(FVector2D(PopScale, PopScale));
+	GetWorld()->GetTimerManager().SetTimer(PopTimer, this, &UStopwatchHUDWidget::EndPop, PopSeconds);
+}
+
+void UStopwatchHUDWidget::EndPop()
+{
+	Crosshair->SetRenderScale(FVector2D(1.0f, 1.0f));
+}
+
+float UStopwatchHUDWidget::GetDotScale() const
+{
+	return Crosshair->GetRenderTransform().Scale.X;
+}
+
+FLinearColor UStopwatchHUDWidget::GetDotColor() const
+{
+	return Crosshair->GetColorAndOpacity();
 }
