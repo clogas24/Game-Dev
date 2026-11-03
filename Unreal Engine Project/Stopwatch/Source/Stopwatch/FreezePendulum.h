@@ -4,8 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TimeStateProvider.h"
 #include "FreezePendulum.generated.h"
 
+class USphereComponent;
 class UStaticMeshComponent;
 class UTimeableComponent;
 
@@ -14,7 +16,7 @@ class UTimeableComponent;
  *  Its swing is driven by the dilated delta, so a freeze stops it and it resumes from the same angle
  */
 UCLASS()
-class AFreezePendulum : public AActor
+class AFreezePendulum : public AActor, public ITimeStateProvider
 {
 	GENERATED_BODY()
 
@@ -27,6 +29,10 @@ class AFreezePendulum : public AActor
 
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	UStaticMeshComponent* Bob;
+
+	/** Surrounds the bob, for bKillsPlayer */
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	USphereComponent* KillZone;
 
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	UTimeableComponent* Timeable;
@@ -53,14 +59,28 @@ public:
 	UPROPERTY(EditAnywhere, Category="Pendulum")
 	FVector SwingAxis = FVector::ForwardVector;
 
+	/** Makes this a blade: touching the bob while it swings kills the player */
+	UPROPERTY(EditAnywhere, Category="Pendulum")
+	bool bKillsPlayer = false;
+
+	/** Reach of the kill zone around the bob's center */
+	UPROPERTY(EditAnywhere, Category="Pendulum", meta=(ClampMin="1"))
+	float KillRadius = 60.0f;
+
 	/** Constructor */
 	AFreezePendulum();
 
 	/** Advances the swing */
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Applies the settings that changed since the level was saved */
+	virtual void BeginPlay() override;
+
 	/** Sizes the arm and poses the swing */
 	virtual void OnConstruction(const FTransform& Transform) override;
+
+	virtual float CaptureTimeState() const override { return Elapsed; }
+	virtual void RestoreTimeState(float State) override;
 
 	/** Returns the current swing angle, in degrees */
 	float GetAngle() const;
@@ -68,6 +88,9 @@ public:
 	FORCEINLINE UTimeableComponent* GetTimeable() const { return Timeable; }
 
 private:
+
+	/** Sizes the arm and kill zone */
+	void ApplySettings();
 
 	/** Rotates the pivot to the current angle */
 	void UpdateSwing();

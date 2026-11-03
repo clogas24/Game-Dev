@@ -3,29 +3,35 @@
 #include "StopwatchCharacter.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
+#include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerStart.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Stopwatch.h"
+#include "StopwatchPlayerController.h"
 #include "TimeAbilityComponent.h"
 #include "TimeSandComponent.h"
+#include "TimerManager.h"
 
 AStopwatchCharacter::AStopwatchCharacter()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
-	// Don't rotate when the controller rotates. Let that just affect the camera.
+	// The body faces where the player looks, but only turns around the vertical axis
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw = true;
 	bUseControllerRotationRoll = false;
 
 	// Configure character movement
-	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bOrientRotationToMovement = false;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 
 	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
@@ -48,12 +54,45 @@ AStopwatchCharacter::AStopwatchCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
+	// Eyes 160 above the feet. Inside the capsule, so whatever blocks the capsule stays outside the near clip plane
+	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
+	FirstPersonCamera->SetupAttachment(RootComponent);
+	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f));
+	FirstPersonCamera->bUsePawnControlRotation = true;
+
 	// Create the time abilities and the sand that pays for them
 	TimeSand = CreateDefaultSubobject<UTimeSandComponent>(TEXT("TimeSand"));
 	TimeAbility = CreateDefaultSubobject<UTimeAbilityComponent>(TEXT("TimeAbility"));
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void AStopwatchCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	FirstPersonCamera->SetFieldOfView(FirstPersonFOV);
+
+	// Not the engine's WorldSpaceRepresentation: that turns hidden shadows off and expects a first person mesh to cast them
+	GetMesh()->SetCastHiddenShadow(true);
+
+	// An unseen mesh would otherwise leave its shadow stuck in one pose
+	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+
+	SetFirstPerson(bFirstPerson);
+}
+
+void AStopwatchCharacter::SetFirstPerson(bool bNewFirstPerson)
+{
+	bFirstPerson = bNewFirstPerson;
+
+	// the view comes from the first active camera, and an inactive boom stops tracing
+	FirstPersonCamera->SetActive(bFirstPerson);
+	CameraBoom->SetActive(!bFirstPerson);
+	FollowCamera->SetActive(!bFirstPerson);
+
+	GetMesh()->SetOwnerNoSee(bFirstPerson);
 }
 
 void AStopwatchCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -67,7 +106,7 @@ void AStopwatchCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AStopwatchCharacter::Move);
-		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AStopwatchCharacter::Look);
+		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AStopwatchCharacter::MouseLook);
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AStopwatchCharacter::Look);
@@ -93,6 +132,14 @@ void AStopwatchCharacter::Look(const FInputActionValue& Value)
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
 	// route the input
+	DoLook(LookAxisVector.X, LookAxisVector.Y);
+}
+
+void AStopwatchCharacter::MouseLook(const FInputActionValue& Value)
+{
+	const AStopwatchPlayerController* PlayerController = GetController<AStopwatchPlayerController>();
+	const FVector2D LookAxisVector = Value.Get<FVector2D>() * (PlayerController ? PlayerController->GetMouseSensitivity() : 1.0f);
+
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
@@ -136,4 +183,59 @@ void AStopwatchCharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+}
+
+void AStopwatchCharacter::KillOverlappingPlayer(const UPrimitiveComponent* Zone, EDeathCause Cause)
+{
+	TArray<AActor*> Overlapping;
+	Zone->GetOverlappingActors(Overlapping, AStopwatchCharacter::StaticClass());
+
+	for (AActor* Actor : Overlapping)
+	{
+		CastChecked<AStopwatchCharacter>(Actor)->KillPlayer(Cause);
+	}
+}
+
+void AStopwatchCharacter::KillPlayer(EDeathCause Cause)
+{
+	if (bIsDying)
+	{
+		return;
+	}
+
+	bIsDying = true;
+	UE_LOG(LogStopwatch, Log, TEXT("'%s' died: %s"), *GetNameSafe(this), *UEnum::GetValueAsString(Cause));
+
+	OnPlayerDied.Broadcast(Cause);
+
+	GetCharacterMovement()->DisableMovement();
+
+	if (const APlayerController* PlayerController = GetController<APlayerController>())
+	{
+		PlayerController->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, DeathFadeSeconds, FLinearColor::Black, false, true);
+	}
+
+	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AStopwatchCharacter::Respawn, DeathFadeSeconds);
+}
+
+void AStopwatchCharacter::Respawn()
+{
+	// TEMPORARY: the checkpoint step replaces everything in this function
+	TActorIterator<APlayerStart> PlayerStart(GetWorld());
+
+	if (PlayerStart)
+	{
+		TeleportTo(PlayerStart->GetActorLocation(), PlayerStart->GetActorRotation());
+	}
+
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+	TimeSand->SetSand(TimeSand->MaxSand);
+
+	if (const APlayerController* PlayerController = GetController<APlayerController>())
+	{
+		PlayerController->PlayerCameraManager->StartCameraFade(1.0f, 0.0f, DeathFadeSeconds, FLinearColor::Black);
+	}
+
+	bIsDying = false;
 }

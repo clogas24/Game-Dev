@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "FreezePendulum.h"
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "StopwatchCharacter.h"
 #include "TimeableComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -32,17 +34,36 @@ AFreezePendulum::AFreezePendulum()
 	Bob->SetRelativeLocation(FVector(0.0f, 0.0f, -50.0f));
 	Bob->SetCollisionProfileName(TEXT("BlockAll"));
 
+	KillZone = CreateDefaultSubobject<USphereComponent>(TEXT("KillZone"));
+	KillZone->SetupAttachment(Pivot);
+	KillZone->SetCollisionProfileName(TEXT("Trigger"));
+
 	Timeable = CreateDefaultSubobject<UTimeableComponent>(TEXT("Timeable"));
+}
+
+void AFreezePendulum::BeginPlay()
+{
+	Super::BeginPlay();
+
+	ApplySettings();
+}
+
+void AFreezePendulum::ApplySettings()
+{
+	// the engine's cylinder is 100 units tall and centered on its origin
+	Arm->SetRelativeScale3D(FVector(0.1f, 0.1f, ArmLength / 100.0f));
+	Arm->SetRelativeLocation(FVector(0.0f, 0.0f, -ArmLength * 0.5f));
+
+	KillZone->SetRelativeLocation(FVector(0.0f, 0.0f, -ArmLength));
+	KillZone->SetSphereRadius(KillRadius);
+	KillZone->SetCollisionEnabled(bKillsPlayer ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
 void AFreezePendulum::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	// the engine's cylinder is 100 units tall and centered on its origin
-	Arm->SetRelativeScale3D(FVector(0.1f, 0.1f, ArmLength / 100.0f));
-	Arm->SetRelativeLocation(FVector(0.0f, 0.0f, -ArmLength * 0.5f));
-
+	ApplySettings();
 	UpdateSwing();
 }
 
@@ -51,6 +72,17 @@ void AFreezePendulum::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	Elapsed += DeltaSeconds;
+	UpdateSwing();
+
+	if (bKillsPlayer && DeltaSeconds > 0.0f)
+	{
+		AStopwatchCharacter::KillOverlappingPlayer(KillZone, EDeathCause::Blade);
+	}
+}
+
+void AFreezePendulum::RestoreTimeState(float State)
+{
+	Elapsed = State;
 	UpdateSwing();
 }
 

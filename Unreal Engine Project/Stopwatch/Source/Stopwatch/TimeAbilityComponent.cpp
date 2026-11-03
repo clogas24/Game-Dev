@@ -19,16 +19,30 @@ void UTimeAbilityComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 
 	const UTimeSandComponent* Sand = GetOwner()->FindComponentByClass<UTimeSandComponent>();
 
-	EFreezeAimState NewState = EFreezeAimState::NoTarget;
-	if (Sand && FindAimTarget())
+	UTimeableComponent* Target = FindAimTarget();
+	AimTarget = Target;
+
+	ETimeAimState NewState = ETimeAimState::NoTarget;
+	if (Sand && Target)
 	{
-		NewState = Sand->CanAfford(FreezeSandCost) ? EFreezeAimState::Affordable : EFreezeAimState::Unaffordable;
+		if (Target->CanBeFrozen() && Sand->CanAfford(FreezeSandCost))
+		{
+			NewState = ETimeAimState::CanFreeze;
+		}
+		else if (Target->CanBeRewound() && Sand->CanAfford(RewindSandCost))
+		{
+			NewState = ETimeAimState::RewindOnly;
+		}
+		else
+		{
+			NewState = ETimeAimState::Unaffordable;
+		}
 	}
 
 	if (NewState != AimState)
 	{
 		AimState = NewState;
-		OnFreezeAimStateChanged.Broadcast(AimState);
+		OnAimStateChanged.Broadcast(AimState);
 	}
 }
 
@@ -55,7 +69,7 @@ UTimeableComponent* UTimeAbilityComponent::FindAimTarget() const
 	}
 
 	UTimeableComponent* Target = Hit.GetActor() ? Hit.GetActor()->FindComponentByClass<UTimeableComponent>() : nullptr;
-	return Target && Target->CanBeFrozen() ? Target : nullptr;
+	return Target && (Target->CanBeFrozen() || Target->CanBeRewound()) ? Target : nullptr;
 }
 
 bool UTimeAbilityComponent::TryFreeze()
@@ -85,6 +99,39 @@ bool UTimeAbilityComponent::TryFreezeTarget(UTimeableComponent* Target)
 	}
 
 	Target->Freeze(FreezeDuration);
+	OnAbilityUsed.Broadcast();
 	UE_LOG(LogStopwatch, Log, TEXT("Froze '%s' for %.1fs, %.0f sand left."), *GetNameSafe(Target->GetOwner()), FreezeDuration, Sand->GetCurrentSand());
+	return true;
+}
+
+bool UTimeAbilityComponent::TryRewind()
+{
+	return TryRewindTarget(FindAimTarget());
+}
+
+bool UTimeAbilityComponent::TryRewindTarget(UTimeableComponent* Target)
+{
+	if (!Target || !Target->CanBeRewound())
+	{
+		return false;
+	}
+
+	UTimeSandComponent* Sand = GetOwner()->FindComponentByClass<UTimeSandComponent>();
+
+	if (!Sand)
+	{
+		UE_LOG(LogStopwatch, Error, TEXT("'%s' has no UTimeSandComponent to pay for Rewind."), *GetNameSafe(GetOwner()));
+		return false;
+	}
+
+	if (!Sand->TrySpend(RewindSandCost))
+	{
+		UE_LOG(LogStopwatch, Log, TEXT("Rewind failed: not enough sand for '%s'."), *GetNameSafe(Target->GetOwner()));
+		return false;
+	}
+
+	Target->Rewind();
+	OnAbilityUsed.Broadcast();
+	UE_LOG(LogStopwatch, Log, TEXT("Rewound '%s', %.0f sand left."), *GetNameSafe(Target->GetOwner()), Sand->GetCurrentSand());
 	return true;
 }
