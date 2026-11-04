@@ -50,6 +50,9 @@ public:
 
 protected:
 
+	/** Makes the mesh glow the sand's color */
+	virtual void BeginPlay() override;
+
 	/** Spins and bobs the mesh */
 	virtual void Tick(float DeltaTime) override;
 

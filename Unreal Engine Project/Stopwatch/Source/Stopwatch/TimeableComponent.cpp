@@ -5,6 +5,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Stopwatch.h"
 #include "TimerManager.h"
@@ -33,6 +34,27 @@ void UTimeableComponent::BeginPlay()
 			Pose.Broken = Mesh->GetRelativeTransform();
 			Pose.Intact = *Intact;
 		}
+
+		if (UMaterialInstanceDynamic* Material = MakeClockworkMaterial(Mesh))
+		{
+			ClockworkMaterials.Add(Material);
+		}
+	}
+}
+
+void UTimeableComponent::SetMaterialParameter(FName Name, float Value)
+{
+	for (UMaterialInstanceDynamic* Material : ClockworkMaterials)
+	{
+		Material->SetScalarParameterValue(Name, Value);
+	}
+}
+
+void UTimeableComponent::SetMaterialParameter(FName Name, const FLinearColor& Value)
+{
+	for (UMaterialInstanceDynamic* Material : ClockworkMaterials)
+	{
+		Material->SetVectorParameterValue(Name, Value);
 	}
 }
 

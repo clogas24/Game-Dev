@@ -15,7 +15,7 @@ class UTextBlock;
 class UTimeSandComponent;
 
 /**
- *  Crosshair and Time Sand bar. The widget tree is built in C++, there's no Widget Blueprint
+ *  Crosshair, Time Sand bar and controls hint. The widget tree is built in C++, there's no Widget Blueprint
  *  Driven entirely by the delegates of the components it's bound to
  */
 UCLASS(Config=Game)
@@ -37,11 +37,19 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category="Crosshair", meta=(ClampMin="0.01"))
 	float PopSeconds = 0.1f;
 
+	/** Shows the controls in the bottom right corner */
+	UPROPERTY(EditAnywhere, Config, Category="Controls Hint")
+	bool bShowControlsHint = true;
+
 	float GetDotScale() const;
 	FLinearColor GetDotColor() const;
+	FText GetControlsHintText() const;
 
 	/** Connects the HUD to the possessed character's components and shows their current state */
 	void BindTo(UTimeSandComponent* Sand, UTimeAbilityComponent* Ability);
+
+	/** Names the gamepad's buttons in the controls hint instead of the keyboard and mouse's */
+	void SetUsingGamepad(bool bGamepad);
 
 protected:
 
@@ -89,6 +97,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UImage> RewindTick;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> ControlsHint;
 
 	float FreezeCost = 0.0f;
 	float RewindCost = 0.0f;

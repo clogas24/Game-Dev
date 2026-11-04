@@ -115,6 +115,9 @@ protected:
 	/** Input mapping context setup */
 	virtual void SetupInputComponent() override;
 
+	/** Tells the HUD whether a gamepad or the keyboard and mouse was used last */
+	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
+
 	/** Called for freeze input */
 	void Freeze();
 
@@ -162,4 +165,5 @@ private:
 
 	float MouseSensitivity = 1.0f;
 	bool bSettingsMenuOpen = false;
+	bool bUsingGamepad = false;
 };

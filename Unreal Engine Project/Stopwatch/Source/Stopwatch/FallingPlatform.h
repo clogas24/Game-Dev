@@ -12,7 +12,8 @@ class UStaticMeshComponent;
 class UTimeableComponent;
 
 /**
- *  Kinematic until stepped on, then shakes and drops. Rewinding brings it back and holds it there. Scale the actor to size it
+ *  Kinematic until stepped on, then shakes, flashes and drops. Rewinding brings it back and holds it there. Scale the actor to size it
+ *  Leave a gap around it: touching another body when the drop starts, physics would fling it away
  */
 UCLASS()
 class AFallingPlatform : public AActor, public ITimeStateProvider
@@ -35,9 +36,13 @@ public:
 	UPROPERTY(EditAnywhere, Category="Platform", meta=(ClampMin="0"))
 	float ShakeTime = 1.0f;
 
-	/** How far the shake moves the platform */
+	/** How far the shake bobs the platform up and down */
 	UPROPERTY(EditAnywhere, Category="Platform", meta=(ClampMin="0"))
 	float ShakeDistance = 5.0f;
+
+	/** How far the shake tilts the platform */
+	UPROPERTY(EditAnywhere, Category="Platform", meta=(ClampMin="0"))
+	float WobbleDegrees = 3.0f;
 
 	/** Constructor */
 	AFallingPlatform();
@@ -63,6 +68,7 @@ protected:
 private:
 
 	FVector HomeLocation = FVector::ZeroVector;
+	FRotator HomeRotation = FRotator::ZeroRotator;
 
 	/** Dilated seconds of shaking so far. 0 means it hasn't been stepped on */
 	float ShakeElapsed = 0.0f;

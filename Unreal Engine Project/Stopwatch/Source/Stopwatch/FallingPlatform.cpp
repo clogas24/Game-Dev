@@ -36,6 +36,7 @@ void AFallingPlatform::BeginPlay()
 	Super::BeginPlay();
 
 	HomeLocation = GetActorLocation();
+	HomeRotation = GetActorRotation();
 }
 
 void AFallingPlatform::StartShaking()
@@ -47,10 +48,18 @@ void AFallingPlatform::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// frozen, rewinding, already dropped, or held in place for the player to cross
-	if (DeltaSeconds <= 0.0f || Mesh->IsSimulatingPhysics() || Timeable->IsHolding())
+	// frozen or rewinding, so stays as it is
+	if (DeltaSeconds <= 0.0f)
 	{
 		bStepped = false;
+		return;
+	}
+
+	// already dropped, or held in place for the player to cross
+	if (Mesh->IsSimulatingPhysics() || Timeable->IsHolding())
+	{
+		bStepped = false;
+		Timeable->SetMaterialParameter(TEXT("Flash"), 0.0f);
 		return;
 	}
 
@@ -70,12 +79,17 @@ void AFallingPlatform::Tick(float DeltaSeconds)
 
 	if (ShakeElapsed >= ShakeTime)
 	{
-		SetActorLocation(HomeLocation);
+		SetActorLocationAndRotation(HomeLocation, HomeRotation);
+		Timeable->SetMaterialParameter(TEXT("Flash"), 0.0f);
 		Mesh->SetSimulatePhysics(true);
 		Mesh->WakeAllRigidBodies();
 	}
 	else
 	{
-		SetActorLocation(HomeLocation + FMath::VRand() * ShakeDistance);
+		// tilts and bobs, but never moves sideways: pushed into a neighbor, physics would fling it out when the drop starts
+		const float T = ShakeElapsed;
+		const FRotator Wobble(WobbleDegrees * FMath::Sin(T * 23.0f), 0.0f, WobbleDegrees * 0.5f * FMath::Sin(T * 31.0f));
+		SetActorLocationAndRotation(HomeLocation + FVector(0.0f, 0.0f, ShakeDistance * FMath::Sin(T * 47.0f)), HomeRotation + Wobble);
+		Timeable->SetMaterialParameter(TEXT("Flash"), 0.5f + 0.5f * FMath::Sin(T * 25.0f));
 	}
 }

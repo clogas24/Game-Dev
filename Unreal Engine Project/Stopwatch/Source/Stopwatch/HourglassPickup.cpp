@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Stopwatch.h"
 #include "TimerManager.h"
 #include "TimeSandComponent.h"
 #include "UObject/ConstructorHelpers.h"
@@ -27,6 +29,20 @@ AHourglassPickup::AHourglassPickup()
 	Mesh->SetStaticMesh(CylinderMesh.Object);
 	Mesh->SetRelativeScale3D(FVector(0.3f, 0.3f, 0.6f));
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AHourglassPickup::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// the sand bar's color, glowing so it stands out on the floor
+	if (UMaterialInstanceDynamic* Material = MakeClockworkMaterial(Mesh))
+	{
+		const FLinearColor SandColor(0.9f, 0.65f, 0.2f);
+		Material->SetVectorParameterValue(TEXT("BaseColor"), SandColor);
+		Material->SetVectorParameterValue(TEXT("RimColor"), SandColor);
+		Material->SetScalarParameterValue(TEXT("RimAmount"), 1.5f);
+	}
 }
 
 void AHourglassPickup::Tick(float DeltaTime)
