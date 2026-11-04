@@ -28,6 +28,10 @@ namespace
 	const float TickWidth = 2.0f;
 	const float TickOverhang = 4.0f;
 	const float FlashSeconds = 0.25f;
+
+	const FLinearColor HintColor(1.0f, 1.0f, 1.0f, 0.7f);
+	const FVector2D HintPosition(-32.0f, -32.0f);
+	const int32 HintFontSize = 14;
 }
 
 void UStopwatchHUDWidget::NativeOnInitialized()
@@ -77,6 +81,35 @@ void UStopwatchHUDWidget::NativeOnInitialized()
 
 	FreezeTick->SetColorAndOpacity(CrosshairCanFreeze);
 	RewindTick->SetColorAndOpacity(FLinearColor::White);
+
+	ControlsHint = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	ControlsHint->SetColorAndOpacity(FSlateColor(HintColor));
+	FSlateFontInfo HintFont = ControlsHint->GetFont();
+	HintFont.Size = HintFontSize;
+	ControlsHint->SetFont(HintFont);
+	ControlsHint->SetVisibility(bShowControlsHint ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	UCanvasPanelSlot* HintSlot = Canvas->AddChildToCanvas(ControlsHint);
+	HintSlot->SetAnchors(FAnchors(1.0f, 1.0f));
+	HintSlot->SetAlignment(FVector2D(1.0f, 1.0f));
+	HintSlot->SetPosition(HintPosition);
+	HintSlot->SetAutoSize(true);
+	SetUsingGamepad(false);
+}
+
+void UStopwatchHUDWidget::SetUsingGamepad(bool bGamepad)
+{
+	FString Text = bGamepad ? TEXT("RT Freeze  ·  LT Rewind  ·  A Jump") : TEXT("LMB Freeze  ·  RMB Rewind  ·  Space Jump");
+
+#if !UE_BUILD_SHIPPING
+	Text += TEXT("  ·  F6 Refill Sand");
+#endif
+
+	ControlsHint->SetText(FText::FromString(Text));
+}
+
+FText UStopwatchHUDWidget::GetControlsHintText() const
+{
+	return ControlsHint->GetText();
 }
 
 void UStopwatchHUDWidget::BindTo(UTimeSandComponent* Sand, UTimeAbilityComponent* Ability)

@@ -36,7 +36,7 @@ public:
 	UPROPERTY(EditAnywhere, Category="Bridge", meta=(ClampMin="1"))
 	float PlankThickness = 30.0f;
 
-	/** Fallen planks land this far below the bridge, at least */
+	/** Fallen planks lie this far below the bridge. Put a floor there so the player can see and aim at them */
 	UPROPERTY(EditAnywhere, Category="Bridge", meta=(ClampMin="0"))
 	float FallDepth = 500.0f;
 

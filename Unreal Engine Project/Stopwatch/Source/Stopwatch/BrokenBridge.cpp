@@ -62,8 +62,9 @@ void ABrokenBridge::BuildPlanks()
 		const FVector IntactLocation((Index + 0.5f) * PlankLength, 0.0f, 0.0f);
 		Timeable->IntactTransforms.Add(PlankName, FTransform(FQuat::Identity, IntactLocation, PlankScale));
 
-		const FVector Offset(Random.FRandRange(-Scatter, Scatter), Random.FRandRange(-Scatter, Scatter), -FallDepth - Random.FRandRange(0.0f, Scatter));
-		const FRotator Tumble(Random.FRandRange(-40.0f, 40.0f), Random.FRandRange(-180.0f, 180.0f), Random.FRandRange(-40.0f, 40.0f));
+		// all at one depth and barely tilted, so they lie on a floor there instead of sinking through it
+		const FVector Offset(Random.FRandRange(-Scatter, Scatter), Random.FRandRange(-Scatter, Scatter), -FallDepth);
+		const FRotator Tumble(Random.FRandRange(-8.0f, 8.0f), Random.FRandRange(-60.0f, 60.0f), Random.FRandRange(-8.0f, 8.0f));
 		Plank->SetRelativeTransform(FTransform(Tumble, IntactLocation + Offset, PlankScale));
 
 		Plank->RegisterComponent();

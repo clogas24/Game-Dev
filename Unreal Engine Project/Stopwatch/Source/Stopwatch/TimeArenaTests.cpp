@@ -17,6 +17,9 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "KillVolume.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "ReturnPad.h"
+#include "RollTrigger.h"
 #include "Misc/AutomationTest.h"
 #include "MovingPlatform.h"
 #include "PhysicsCrate.h"
@@ -59,6 +62,30 @@ namespace
 
 		return Count;
 	}
+
+	/** The running game's world, if it's playing the arena */
+	UWorld* FindArenaWorld()
+	{
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			if (Context.WorldType == EWorldType::Game && Context.World() && Context.World()->GetName() == TEXT("Lvl_TimeTest"))
+			{
+				return Context.World();
+			}
+		}
+
+		return nullptr;
+	}
+
+	/** Reads a parameter of the clockwork material Timeable gave the mesh, or -1 if it has none */
+	float GetMaterialScalar(const UPrimitiveComponent* Mesh, FName Name)
+	{
+		UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0));
+		return Material ? Material->K2_GetScalarParameterValue(Name) : -1.0f;
+	}
+
+	/** Must match the script's PIT_TOP */
+	constexpr double PitTop = -450.0;
 }
 
 /**
@@ -69,15 +96,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeArenaTest, "Stopwatch.Arena.Play", EAutoma
 
 bool FTimeArenaTest::RunTest(const FString& Parameters)
 {
-	UWorld* World = nullptr;
-
-	for (const FWorldContext& Context : GEngine->GetWorldContexts())
-	{
-		if (Context.WorldType == EWorldType::Game && Context.World() && Context.World()->GetName() == TEXT("Lvl_TimeTest"))
-		{
-			World = Context.World();
-		}
-	}
+	UWorld* World = FindArenaWorld();
 
 	if (!World)
 	{
@@ -100,6 +119,25 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Two bridges"), CountActors<ABrokenBridge>(World), 2);
 	TestEqual(TEXT("Two crushers"), CountActors<ACrusher>(World), 2);
 	TestEqual(TEXT("Two gears"), CountActors<ASpinningGear>(World), 2);
+	TestEqual(TEXT("Two pressure plates"), CountActors<ARollTrigger>(World), 2);
+	TestEqual(TEXT("A return pad at the end of every station, two for the first"), CountActors<AReturnPad>(World), 12);
+
+	// everything timeable looks like clockwork
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (!It->FindComponentByClass<UTimeableComponent>())
+		{
+			continue;
+		}
+
+		TInlineComponentArray<UMeshComponent*> Meshes(*It);
+
+		for (const UMeshComponent* Mesh : Meshes)
+		{
+			UMaterialInterface* Material = Mesh->GetMaterial(0);
+			TestTrue(FString::Printf(TEXT("%s %s is brass"), *It->GetName(), *Mesh->GetName()), Material && Material->GetBaseMaterial()->GetName() == TEXT("M_Clockwork"));
+		}
+	}
 
 	AFreezePendulum* Blade = FindActor<AFreezePendulum>(World, [](const AFreezePendulum* Actor) { return Actor->bKillsPlayer; });
 	ABrokenBridge* SafeBridge = FindActor<ABrokenBridge>(World, [](const ABrokenBridge* Actor) { return Actor->GetTimeable()->HoldDuration == 0.0f; });
@@ -111,10 +149,12 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 	ADropChute* Chute = FindActor<ADropChute>(World, [](const ADropChute*) { return true; });
 	ASpinningGear* BladeGear = FindActor<ASpinningGear>(World, [](const ASpinningGear* Actor) { return Actor->bIsBlade; });
 	APhysicsProp* Block = FindActor<APhysicsProp>(World, [](const APhysicsProp* Actor) { return Actor->Shape == EPropShape::Cube && Actor->bHeldUntilWoken; });
+	ARollTrigger* BoulderPlate = FindActor<ARollTrigger>(World, [Boulder](const ARollTrigger* Actor) { return Actor->TargetProp == Boulder; });
 
 	if (!TestNotNull(TEXT("Blade pendulum"), Blade) || !TestNotNull(TEXT("Safe bridge"), SafeBridge) || !TestNotNull(TEXT("Timed bridge"), TimedBridge)
 		|| !TestNotNull(TEXT("Crate"), Crate) || !TestNotNull(TEXT("Boulder"), Boulder) || !TestNotNull(TEXT("Falling platform"), Falling)
-		|| !TestNotNull(TEXT("Crusher"), Crusher) || !TestNotNull(TEXT("Chute"), Chute) || !TestNotNull(TEXT("Blade gear"), BladeGear) || !TestNotNull(TEXT("Block"), Block))
+		|| !TestNotNull(TEXT("Crusher"), Crusher) || !TestNotNull(TEXT("Chute"), Chute) || !TestNotNull(TEXT("Blade gear"), BladeGear) || !TestNotNull(TEXT("Block"), Block)
+		|| !TestNotNull(TEXT("Boulder's pressure plate"), BoulderPlate))
 	{
 		return true;
 	}
@@ -210,7 +250,31 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("The player stands on the hub"), FMath::Abs(Character->GetActorLocation().Z - 96.0) < 40.0);
 			State->StartLocation = Character->GetActorLocation();
 
-			TestTrue(TEXT("Fallen planks are out of reach, under the kill volume"), SafeBridge->GetPlanks()[0]->GetComponentLocation().Z < -300.0);
+			// fallen planks lie on the pit floor, below where the player dies, but in view of the edge and in Rewind's reach
+			for (const ABrokenBridge* Bridge : { SafeBridge, TimedBridge })
+			{
+				// standing at the edge of the gap, which the script starts 1200 from the hub's center line
+				const FVector Eye(Bridge->GetActorLocation().X, 1180.0, 160.0);
+				int32 InView = 0;
+				int32 OnFloor = 0;
+
+				for (const UStaticMeshComponent* Plank : Bridge->GetPlanks())
+				{
+					const FVector Location = Plank->GetComponentLocation();
+					OnFloor += FMath::IsNearlyEqual(Location.Z, PitTop + 15.0, 1.0) ? 1 : 0;
+
+					FHitResult Hit;
+					FCollisionQueryParams Params(SCENE_QUERY_STAT(PlankView), false, Character);
+					if (World->LineTraceSingleByChannel(Hit, Eye, Location, ECC_Visibility, Params) && Hit.GetActor() == Bridge && FVector::Dist(Eye, Location) < Ability->FreezeRange)
+					{
+						++InView;
+					}
+				}
+
+				TestEqual(TEXT("Fallen planks lie on the pit floor"), OnFloor, Bridge->GetPlanks().Num());
+				AddInfo(FString::Printf(TEXT("%s: %d of %d fallen planks in view and in reach from the near edge"), *Bridge->GetName(), InView, Bridge->GetPlanks().Num()));
+				TestTrue(TEXT("Most fallen planks are in view and in reach from the near edge"), InView * 2 >= Bridge->GetPlanks().Num());
+			}
 
 			// a rewind with nothing to go back to is free
 			TestFalse(TEXT("A waiting boulder can't be rewound"), Ability->TryRewindTarget(Boulder->GetTimeable()));
@@ -219,9 +283,10 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("Safe bridge rewinds"), Ability->TryRewindTarget(SafeBridge->GetTimeable()));
 			TestEqual(TEXT("Rewind costs 35"), Sand->GetCurrentSand(), 65.0f);
 			TimedBridge->GetTimeable()->Rewind();
-			Falling->StartShaking();
-			// what its trigger does
-			Boulder->Wake(FVector(0.0f, -100.0f, 0.0f));
+
+			// stands on the plate, which rolls the boulder
+			TestFalse(TEXT("Plate starts up"), BoulderPlate->IsPressed());
+			Place(BoulderPlate->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f));
 			NextStep();
 			return false;
 
@@ -231,8 +296,8 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 				return false;
 			}
 
+			TestTrue(TEXT("Plate pressed while stood on"), BoulderPlate->IsPressed());
 			TestTrue(TEXT("Bridge restored, with its top level with the floor"), FMath::IsNearlyEqual(SafeBridge->GetPlanks()[0]->GetComponentLocation().Z, -14.0, 1.0));
-			TestTrue(TEXT("Falling platform is dropping"), Falling->GetMesh()->IsSimulatingPhysics());
 			AddInfo(FString::Printf(TEXT("Boulder from Z %.0f to %s, velocity %s, simulating %d, awake %d"), State->BoulderZ, *Boulder->GetActorLocation().ToString(), *Boulder->GetMesh()->GetPhysicsLinearVelocity().ToString(), Boulder->GetMesh()->IsSimulatingPhysics(), Boulder->GetMesh()->IsAnyRigidBodyAwake()));
 			TestTrue(TEXT("Boulder rolled down the ramp"), Boulder->GetActorLocation().Z < State->BoulderZ - 50.0f);
 			TestTrue(TEXT("Chute released something"), !Chute->GetLiveProps().IsEmpty());
@@ -318,6 +383,8 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 				TestTrue(FString::Printf(TEXT("View comes from the %s camera"), View), Controller->PlayerCameraManager->GetCameraLocation().Equals(Camera->GetComponentLocation(), 1.0));
 				TestEqual(FString::Printf(TEXT("Aim state on a crate, %s"), View), (int32)Ability->GetAimState(), (int32)ETimeAimState::CanFreeze);
 				TestEqual(FString::Printf(TEXT("Aim target is the crate, %s"), View), Ability->GetAimTarget(), Crate->GetTimeable());
+				TestEqual(FString::Printf(TEXT("Aimed crate glows, %s"), View), GetMaterialScalar(Crate->GetMesh(), TEXT("RimAmount")), 1.0f);
+				TestEqual(TEXT("What isn't aimed at doesn't glow"), GetMaterialScalar(Boulder->GetMesh(), TEXT("RimAmount")), 0.0f);
 				TestTrue(FString::Printf(TEXT("Body turned to the aim, %s"), View), FMath::IsNearlyZero(FRotator::NormalizeAxis(Character->GetActorRotation().Yaw - Controller->GetControlRotation().Yaw), 1.0f));
 
 				// again from behind the player, whose own body is now in the way of the trace
@@ -430,8 +497,16 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 				return false;
 			}
 
-			const UStopwatchHUDWidget* HUD = Cast<AStopwatchPlayerController>(Controller)->GetHUDWidget();
+			UStopwatchHUDWidget* HUD = Cast<AStopwatchPlayerController>(Controller)->GetHUDWidget();
 			TestEqual(TEXT("Dot at rest"), HUD->GetDotScale(), 1.0f);
+
+			// the controls hint, which follows the last device used
+			TestTrue(TEXT("Hint names the mouse"), HUD->GetControlsHintText().ToString().StartsWith(TEXT("LMB Freeze")));
+			TestTrue(TEXT("Hint has the debug refill outside Shipping"), HUD->GetControlsHintText().ToString().Contains(TEXT("F6 Refill Sand")));
+			HUD->SetUsingGamepad(true);
+			TestTrue(TEXT("Hint names the gamepad"), HUD->GetControlsHintText().ToString().StartsWith(TEXT("RT Freeze")));
+			HUD->SetUsingGamepad(false);
+
 			Sand->SetSand(Sand->MaxSand);
 			TestTrue(TEXT("Freeze for the pop"), Ability->TryFreezeTarget(Blade->GetTimeable()));
 			TestEqual(TEXT("Successful spend pops the dot"), HUD->GetDotScale(), HUD->PopScale);
@@ -495,6 +570,221 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 		}
 
 		return true;
+	}));
+
+	return true;
+}
+
+/**
+ *  Walks the player through station 6 with movement input, as a player would, then onto every return pad
+ *  Needs the game running the arena, like Stopwatch.Arena.Play
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeArenaWalkthroughTest, "Stopwatch.Arena.Walkthrough", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTimeArenaWalkthroughTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = FindArenaWorld();
+
+	if (!World)
+	{
+		AddInfo(TEXT("Skipped: Lvl_TimeTest isn't the running game's level."));
+		return true;
+	}
+
+	APlayerController* Controller = World->GetFirstPlayerController();
+	AStopwatchCharacter* Character = Controller ? Controller->GetPawn<AStopwatchCharacter>() : nullptr;
+	AFallingPlatform* Falling = FindActor<AFallingPlatform>(World, [](const AFallingPlatform*) { return true; });
+
+	if (!TestNotNull(TEXT("Player spawned"), Character) || !TestNotNull(TEXT("Falling platform"), Falling))
+	{
+		return true;
+	}
+
+	TArray<AReturnPad*> Pads;
+	for (TActorIterator<AReturnPad> It(World); It; ++It)
+	{
+		Pads.Add(*It);
+	}
+
+	struct FState
+	{
+		int32 Step = 0;
+		double StepTime = 0.0;
+		int32 Pad = 0;
+		bool bFlashed = false;
+		bool bWobbled = false;
+	};
+	TSharedRef<FState> State = MakeShared<FState>();
+	State->StepTime = World->GetTimeSeconds();
+
+	const FVector Home = Falling->GetActorLocation();
+	const FBox Bounds = Falling->GetMesh()->Bounds.GetBox();
+	Character->GetTimeSand()->SetSand(Character->GetTimeSand()->MaxSand);
+
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([=, this]()
+	{
+		const double Now = World->GetTimeSeconds();
+		const double SinceStep = Now - State->StepTime;
+		const FVector Forward(0.0f, 1.0f, 0.0f);
+
+		auto NextStep = [State, Now]()
+		{
+			++State->Step;
+			State->StepTime = Now;
+		};
+
+		auto Fail = [this, State](const FString& What)
+		{
+			AddError(What);
+			State->Step = 100;
+		};
+
+		switch (State->Step)
+		{
+		case 0:
+			// on the near floor, looking along the lane
+			Character->SetActorLocation(FVector(Home.X, Bounds.Min.Y - 250.0, 100.0), false, nullptr, ETeleportType::TeleportPhysics);
+			Controller->SetControlRotation(Forward.Rotation());
+			NextStep();
+			return false;
+
+		case 1:
+			// walks on until it notices
+			Character->AddMovementInput(Forward, 1.0f);
+
+			if (Falling->CaptureTimeState() > 0.0f)
+			{
+				AddInfo(FString::Printf(TEXT("Shaking %.2fs after walking towards it"), SinceStep));
+				NextStep();
+			}
+			else if (SinceStep > 3.0)
+			{
+				Fail(TEXT("Walking onto the falling platform didn't start the shake"));
+			}
+
+			return false;
+
+		case 2:
+			// back off before it drops, watching the shake
+			Character->AddMovementInput(-Forward, 1.0f);
+			State->bFlashed |= GetMaterialScalar(Falling->GetMesh(), TEXT("Flash")) > 0.5f;
+			State->bWobbled |= !Falling->GetActorRotation().Equals(FRotator::ZeroRotator, 1.0f);
+
+			if (Falling->GetMesh()->IsSimulatingPhysics())
+			{
+				TestTrue(TEXT("Shake flashes red"), State->bFlashed);
+				TestTrue(TEXT("Shake wobbles"), State->bWobbled);
+				TestTrue(TEXT("Backed off onto the near floor in time"), Character->GetActorLocation().Y < Bounds.Min.Y);
+				TestEqual(TEXT("No flash once it drops"), GetMaterialScalar(Falling->GetMesh(), TEXT("Flash")), 0.0f);
+				NextStep();
+			}
+			else if (SinceStep > 3.0)
+			{
+				Fail(TEXT("The falling platform didn't drop after shaking"));
+			}
+
+			return false;
+
+		case 3:
+		{
+			if (SinceStep < 3.0)
+			{
+				return false;
+			}
+
+			// it fell straight down and lies on the pit floor, rather than being flung away
+			const FVector Location = Falling->GetActorLocation();
+			AddInfo(FString::Printf(TEXT("Platform landed at %s, rotation %s"), *Location.ToString(), *Falling->GetActorRotation().ToString()));
+			TestTrue(TEXT("Platform fell into the pit"), FMath::IsNearlyEqual(Location.Z, PitTop + 15.0, 25.0));
+			TestTrue(TEXT("Platform fell straight down"), FVector::Dist2D(Location, Home) < 100.0);
+			TestFalse(TEXT("The player survived on the near floor"), Character->IsDying());
+
+			// walks up to the edge, where the floor's lip no longer hides the pit
+			Character->SetActorLocation(FVector(Home.X, Bounds.Min.Y - 60.0, Character->GetActorLocation().Z), false, nullptr, ETeleportType::TeleportPhysics);
+			NextStep();
+			return false;
+		}
+
+		case 4:
+			// aims at it through the camera, once the camera has caught up with the move
+			if (SinceStep > 0.1)
+			{
+				Controller->SetControlRotation((Falling->GetActorLocation() - Controller->PlayerCameraManager->GetCameraLocation()).Rotation());
+				NextStep();
+			}
+
+			return false;
+
+		case 5:
+		{
+			if (SinceStep < 0.3)
+			{
+				return false;
+			}
+
+			UTimeAbilityComponent* Ability = Character->GetTimeAbility();
+			TestEqual(TEXT("Fallen platform is the aim target from the edge"), Ability->GetAimTarget(), Falling->GetTimeable());
+			TestEqual(TEXT("Aimed platform glows"), GetMaterialScalar(Falling->GetMesh(), TEXT("RimAmount")), 1.0f);
+			TestTrue(TEXT("RMB rewinds the fallen platform"), Ability->TryRewind());
+			NextStep();
+			return false;
+		}
+
+		case 6:
+			if (Falling->GetTimeable()->IsRewinding())
+			{
+				return false;
+			}
+
+			TestTrue(TEXT("Rewound platform holds"), Falling->GetTimeable()->IsHolding());
+			TestTrue(TEXT("Rewound platform is back home"), FVector::Dist(Falling->GetActorLocation(), Home) < 10.0);
+			Controller->SetControlRotation(Forward.Rotation());
+			NextStep();
+			return false;
+
+		case 7:
+			// walks across to the far floor
+			Character->AddMovementInput(Forward, 1.0f);
+
+			if (Character->GetActorLocation().Y > Bounds.Max.Y + 150.0)
+			{
+				TestFalse(TEXT("Crossed alive"), Character->IsDying());
+				TestFalse(TEXT("The held platform doesn't drop again"), Falling->GetMesh()->IsSimulatingPhysics());
+				NextStep();
+			}
+			else if (SinceStep > 6.0 || Character->IsDying())
+			{
+				Fail(TEXT("Couldn't walk across the rewound platform"));
+			}
+
+			return false;
+
+		case 8:
+			// every pad, one at a time
+			if (State->Pad >= Pads.Num())
+			{
+				return true;
+			}
+
+			Character->SetActorLocation(Pads[State->Pad]->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f), false, nullptr, ETeleportType::TeleportPhysics);
+			NextStep();
+			return false;
+
+		case 9:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestTrue(FString::Printf(TEXT("%s takes the player back to the hub"), *Pads[State->Pad]->GetName()),
+				FVector::Dist2D(Character->GetActorLocation(), Pads[State->Pad]->Destination) < 50.0 && Character->GetActorLocation().Y < 600.0);
+			++State->Pad;
+			State->Step = 8;
+			return false;
+
+		default:
+			return true;
+		}
 	}));
 
 	return true;

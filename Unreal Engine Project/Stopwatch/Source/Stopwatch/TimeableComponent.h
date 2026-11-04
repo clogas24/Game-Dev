@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "TimeableComponent.generated.h"
 
+class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UMeshComponent;
 class UPrimitiveComponent;
@@ -183,6 +184,10 @@ public:
 	/** Forgets the recorded history. Call after teleporting the owner, so Rewind doesn't play through the jump */
 	void ClearHistory();
 
+	/** Sets a parameter of the clockwork material on every mesh of the owner. See MakeClockworkMaterial */
+	void SetMaterialParameter(FName Name, float Value);
+	void SetMaterialParameter(FName Name, const FLinearColor& Value);
+
 	/** Seconds of history in the buffer */
 	float GetBufferSeconds() const { return SampleCount * RecordInterval; }
 
@@ -192,7 +197,7 @@ public:
 	/** Records and plays back */
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Captures the broken pose of AuthoredPast meshes */
+	/** Captures the broken pose of AuthoredPast meshes, and gives every mesh the clockwork look */
 	virtual void BeginPlay() override;
 
 	/** Clears the timer and restores the actor */
@@ -243,6 +248,9 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<FTimeableAuthoredPose> AuthoredPoses;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> ClockworkMaterials;
 
 	/** Ring buffer of the owner's history */
 	TArray<FTimeableSample> Samples;

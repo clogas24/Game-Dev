@@ -8,6 +8,7 @@
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/Actor.h"
 #include "InputAction.h"
+#include "InputKeyEventArgs.h"
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "Camera/PlayerCameraManager.h"
@@ -76,6 +77,7 @@ void AStopwatchPlayerController::OnPossess(APawn* InPawn)
 	{
 		HUDWidget = CreateWidget<UStopwatchHUDWidget>(this);
 		HUDWidget->AddToPlayerScreen(0);
+		HUDWidget->SetUsingGamepad(bUsingGamepad);
 	}
 
 	HUDWidget->BindTo(StopwatchCharacter->GetTimeSand(), StopwatchCharacter->GetTimeAbility());
@@ -153,6 +155,24 @@ void AStopwatchPlayerController::SetupInputComponent()
 			}
 		}
 	}
+}
+
+bool AStopwatchPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+	// a resting stick still reports small values, which mustn't count as using the gamepad
+	const bool bCounts = !Params.Key.IsAnalog() || FMath::Abs(Params.AmountDepressed) > 0.3f;
+
+	if (bCounts && Params.IsGamepad() != bUsingGamepad)
+	{
+		bUsingGamepad = Params.IsGamepad();
+
+		if (HUDWidget)
+		{
+			HUDWidget->SetUsingGamepad(bUsingGamepad);
+		}
+	}
+
+	return Super::InputKey(Params);
 }
 
 void AStopwatchPlayerController::Freeze()

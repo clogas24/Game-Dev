@@ -20,7 +20,6 @@ void UTimeAbilityComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	const UTimeSandComponent* Sand = GetOwner()->FindComponentByClass<UTimeSandComponent>();
 
 	UTimeableComponent* Target = FindAimTarget();
-	AimTarget = Target;
 
 	ETimeAimState NewState = ETimeAimState::NoTarget;
 	if (Sand && Target)
@@ -38,6 +37,26 @@ void UTimeAbilityComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			NewState = ETimeAimState::Unaffordable;
 		}
 	}
+
+	if (Target != AimTarget.Get() || NewState != AimState)
+	{
+		if (UTimeableComponent* OldTarget = AimTarget.Get())
+		{
+			OldTarget->SetMaterialParameter(TEXT("RimAmount"), 0.0f);
+		}
+
+		// the same colors as the crosshair
+		if (Target)
+		{
+			const FLinearColor RimColor = NewState == ETimeAimState::CanFreeze ? FLinearColor(0.3f, 0.8f, 1.0f)
+				: NewState == ETimeAimState::RewindOnly ? FLinearColor(1.0f, 0.6f, 0.1f)
+				: FLinearColor(0.25f, 0.25f, 0.25f);
+			Target->SetMaterialParameter(TEXT("RimColor"), RimColor);
+			Target->SetMaterialParameter(TEXT("RimAmount"), 1.0f);
+		}
+	}
+
+	AimTarget = Target;
 
 	if (NewState != AimState)
 	{
