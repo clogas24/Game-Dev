@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SpinningGear.h"
+#include "Stopwatch.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -51,6 +52,11 @@ void ASpinningGear::BeginPlay()
 	Super::BeginPlay();
 
 	ApplySettings();
+
+	if (bIsBlade)
+	{
+		Timeable->SetMaterialParameter(TEXT("BaseColor"), ClockworkHazardColor);
+	}
 }
 
 void ASpinningGear::ApplySettings()
@@ -90,4 +96,10 @@ void ASpinningGear::RestoreTimeState(float State)
 void ASpinningGear::UpdatePose()
 {
 	Rotor->SetRelativeRotation(FQuat(Axis.GetSafeNormal(), FMath::DegreesToRadians(GetAngle())));
+}
+
+void ASpinningGear::ResetToStart()
+{
+	Timeable->ResetTimeState();
+	RestoreTimeState(0.0f);
 }

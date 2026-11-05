@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
+#include "StopwatchGameMode.h"
 #include "StopwatchPlayerController.generated.h"
 
 class UInputAction;
@@ -12,6 +13,7 @@ class UInputMappingContext;
 class UUserWidget;
 class UStopwatchHUDWidget;
 class UStopwatchSettingsWidget;
+class UStopwatchMenuWidget;
 
 /**
  *  Basic PlayerController class for a first person game
@@ -52,6 +54,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TArray<FKey> RewindKeys = { EKeys::RightMouseButton, EKeys::Gamepad_LeftTrigger };
 
+	/** Keys that pause and resume. P as well as Esc, because Esc ends Play In Editor */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TArray<FKey> PauseKeys = { EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Right };
+
+	/** Keys that play again from the win screen */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TArray<FKey> PlayAgainKeys = { EKeys::R, EKeys::Gamepad_FaceButton_Bottom };
+
 	/** Keys that open and close the settings menu */
 	UPROPERTY(EditAnywhere, Category="Input")
 	TArray<FKey> SettingsMenuKeys = { EKeys::Tab };
@@ -80,6 +90,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RewindAction;
 
+	/** Pause input action, created at runtime so it needs no input assets */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PauseAction;
+
 	/** Settings menu input action, created at runtime so it needs no input assets */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> SettingsMenuAction;
@@ -98,6 +112,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> DebugToggleViewAction;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> DebugNextCheckpointAction;
+
 	/** Crosshair and Time Sand bar */
 	UPROPERTY()
 	TObjectPtr<UStopwatchHUDWidget> HUDWidget;
@@ -105,6 +122,10 @@ protected:
 	/** Created the first time the menu opens */
 	UPROPERTY()
 	TObjectPtr<UStopwatchSettingsWidget> SettingsWidget;
+
+	/** Title, pause and win screens */
+	UPROPERTY()
+	TObjectPtr<UStopwatchMenuWidget> MenuWidget;
 
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
@@ -124,6 +145,15 @@ protected:
 	/** Called for rewind input */
 	void Rewind();
 
+	/** Called for pause input */
+	void HandlePauseInput();
+
+	/** Shows the screen, cursor, input mode and pawn input for the mode */
+	UFUNCTION()
+	void HandleModeChanged(EStopwatchMode OldMode, EStopwatchMode NewMode);
+
+	void ApplyMode(EStopwatchMode NewMode);
+
 	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
 
@@ -141,6 +171,9 @@ protected:
 	/** V */
 	void DebugToggleView();
 
+	/** F5 */
+	void DebugNextCheckpoint();
+
 	bool bShowDebugOverlay = false;
 
 #endif
@@ -148,6 +181,16 @@ protected:
 public:
 
 	UStopwatchHUDWidget* GetHUDWidget() const { return HUDWidget; }
+	UStopwatchMenuWidget* GetMenuWidget() const { return MenuWidget; }
+
+	/** True if a gamepad was used last */
+	bool IsUsingGamepad() const { return bUsingGamepad; }
+
+	/** Replaces {freeze}, {rewind}, {jump} and {pause} with the keys bound to them on the device */
+	FText FormatPrompt(const FText& Prompt, bool bGamepad) const;
+
+	/** Short name of the first key bound to the action on the device, such as LMB or RT */
+	FText GetActionKeyLabel(const UInputAction* Action, bool bGamepad) const;
 
 	/** Multiplier on mouse look, saved in GameUserSettings.ini when the menu closes */
 	float GetMouseSensitivity() const { return MouseSensitivity; }

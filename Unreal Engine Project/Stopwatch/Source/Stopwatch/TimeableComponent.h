@@ -184,6 +184,12 @@ public:
 	/** Forgets the recorded history. Call after teleporting the owner, so Rewind doesn't play through the jump */
 	void ClearHistory();
 
+	/**
+	 *  Drops every time effect without restoring physics, for an owner that's about to put itself back to its start state
+	 *  Ends up unfrozen, idle, with no history, and AuthoredPast meshes back in their broken pose
+	 */
+	void ResetTimeState();
+
 	/** Sets a parameter of the clockwork material on every mesh of the owner. See MakeClockworkMaterial */
 	void SetMaterialParameter(FName Name, float Value);
 	void SetMaterialParameter(FName Name, const FLinearColor& Value);

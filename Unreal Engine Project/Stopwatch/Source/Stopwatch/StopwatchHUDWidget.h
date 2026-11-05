@@ -7,6 +7,7 @@
 #include "TimeAbilityComponent.h"
 #include "StopwatchHUDWidget.generated.h"
 
+class UBorder;
 class UCanvasPanel;
 class UCanvasPanelSlot;
 class UImage;
@@ -37,6 +38,10 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category="Crosshair", meta=(ClampMin="0.01"))
 	float PopSeconds = 0.1f;
 
+	/** Seconds a section's name stays on screen */
+	UPROPERTY(EditAnywhere, Config, Category="Section", meta=(ClampMin="0.1"))
+	float SectionBannerSeconds = 2.0f;
+
 	/** Shows the controls in the bottom right corner */
 	UPROPERTY(EditAnywhere, Config, Category="Controls Hint")
 	bool bShowControlsHint = true;
@@ -51,10 +56,31 @@ public:
 	/** Names the gamepad's buttons in the controls hint instead of the keyboard and mouse's */
 	void SetUsingGamepad(bool bGamepad);
 
+	/** Shows the name at the top for SectionBannerSeconds */
+	void ShowSectionBanner(const FText& Name);
+
+	/** Shows a prompt for Seconds. Its {freeze}, {rewind} and {jump} follow the device used last */
+	void ShowTutorial(const FText& Prompt, float Seconds);
+
+	/** The collapse countdown at the top: urgent turns it red, bigger and pulsing */
+	void ShowCollapse(float SecondsLeft, bool bUrgent);
+	void HideCollapse();
+
+	/** Big text in the middle of the screen while respawning */
+	void ShowDeathCause(const FText& Cause);
+	void HideDeathCause();
+
+	/** What's on screen, empty when hidden. For tests */
+	FText GetSectionBannerText() const;
+	FText GetTutorialText() const;
+	FText GetCollapseText() const;
+	FText GetDeathCauseText() const;
+
 protected:
 
 	/** Builds the widget tree */
 	virtual void NativeOnInitialized() override;
+
 
 private:
 
@@ -100,6 +126,27 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> ControlsHint;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> SectionBanner;
+
+	UPROPERTY()
+	TObjectPtr<UBorder> TutorialPanel;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> TutorialText;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> CollapseTimer;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> DeathCause;
+
+	/** The tutorial prompt before its keys are filled in */
+	FText TutorialPrompt;
+	FTimerHandle SectionTimer;
+	FTimerHandle TutorialTimer;
+	bool bCollapseUrgentStyle = false;
 
 	float FreezeCost = 0.0f;
 	float RewindCost = 0.0f;

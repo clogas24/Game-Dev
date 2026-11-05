@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "HourglassPickup.generated.h"
 
 class USphereComponent;
@@ -15,7 +16,7 @@ class UTimeSandComponent;
  *  Ignored while the player's sand is full, so it can't be wasted
  */
 UCLASS()
-class AHourglassPickup : public AActor
+class AHourglassPickup : public AActor, public IResettable
 {
 	GENERATED_BODY()
 
@@ -29,11 +30,20 @@ class AHourglassPickup : public AActor
 
 public:
 
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
+
 	/** Sand given to the player */
 	UPROPERTY(EditAnywhere, Category="Pickup", meta=(ClampMin="0"))
 	float SandAmount = 35.0f;
 
-	/** Seconds until the pickup reappears. 0 means it's consumed forever */
+	/** Seconds until the pickup reappears. 0 means not until a checkpoint resets its section */
 	UPROPERTY(EditAnywhere, Category="Pickup", meta=(ClampMin="0"))
 	float RespawnTime = 0.0f;
 
@@ -47,6 +57,9 @@ public:
 
 	/** Constructor */
 	AHourglassPickup();
+
+	/** False while consumed */
+	bool IsAvailable() const { return !IsHidden(); }
 
 protected:
 

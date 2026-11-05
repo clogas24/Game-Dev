@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "PlaytestLogger.h"
 #include "Stopwatch.h"
 #include "TimeableComponent.h"
 #include "TimeSandComponent.h"
@@ -113,11 +114,22 @@ bool UTimeAbilityComponent::TryFreezeTarget(UTimeableComponent* Target)
 
 	if (!Sand->TrySpend(FreezeSandCost))
 	{
+		if (UPlaytestLogger* Logger = UPlaytestLogger::Get(this))
+		{
+			Logger->RecordFailedSpend();
+		}
+
 		UE_LOG(LogStopwatch, Log, TEXT("Freeze failed: not enough sand for '%s'."), *GetNameSafe(Target->GetOwner()));
 		return false;
 	}
 
 	Target->Freeze(FreezeDuration);
+
+	if (UPlaytestLogger* Logger = UPlaytestLogger::Get(this))
+	{
+		Logger->RecordFreeze(FreezeSandCost);
+	}
+
 	OnAbilityUsed.Broadcast();
 	UE_LOG(LogStopwatch, Log, TEXT("Froze '%s' for %.1fs, %.0f sand left."), *GetNameSafe(Target->GetOwner()), FreezeDuration, Sand->GetCurrentSand());
 	return true;
@@ -145,11 +157,22 @@ bool UTimeAbilityComponent::TryRewindTarget(UTimeableComponent* Target)
 
 	if (!Sand->TrySpend(RewindSandCost))
 	{
+		if (UPlaytestLogger* Logger = UPlaytestLogger::Get(this))
+		{
+			Logger->RecordFailedSpend();
+		}
+
 		UE_LOG(LogStopwatch, Log, TEXT("Rewind failed: not enough sand for '%s'."), *GetNameSafe(Target->GetOwner()));
 		return false;
 	}
 
 	Target->Rewind();
+
+	if (UPlaytestLogger* Logger = UPlaytestLogger::Get(this))
+	{
+		Logger->RecordRewind(RewindSandCost);
+	}
+
 	OnAbilityUsed.Broadcast();
 	UE_LOG(LogStopwatch, Log, TEXT("Rewound '%s', %.0f sand left."), *GetNameSafe(Target->GetOwner()), Sand->GetCurrentSand());
 	return true;

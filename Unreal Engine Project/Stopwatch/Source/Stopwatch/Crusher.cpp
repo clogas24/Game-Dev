@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Crusher.h"
+#include "Stopwatch.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -46,6 +47,7 @@ void ACrusher::BeginPlay()
 	Super::BeginPlay();
 
 	ApplySettings();
+	Timeable->SetMaterialParameter(TEXT("BaseColor"), ClockworkHazardColor);
 }
 
 void ACrusher::ApplySettings()
@@ -105,4 +107,10 @@ void ACrusher::UpdatePose()
 	const float Bottom = TravelHeight * GetHeightFraction(Elapsed);
 	Head->SetRelativeLocation(FVector(0.0f, 0.0f, Bottom + HeadSize.Z * 0.5f));
 	KillZone->SetRelativeLocation(FVector(0.0f, 0.0f, Bottom));
+}
+
+void ACrusher::ResetToStart()
+{
+	Timeable->ResetTimeState();
+	RestoreTimeState(0.0f);
 }

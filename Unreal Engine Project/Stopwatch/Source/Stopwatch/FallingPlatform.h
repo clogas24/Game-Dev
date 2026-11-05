@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "TimeStateProvider.h"
 #include "FallingPlatform.generated.h"
 
@@ -16,7 +17,7 @@ class UTimeableComponent;
  *  Leave a gap around it: touching another body when the drop starts, physics would fling it away
  */
 UCLASS()
-class AFallingPlatform : public AActor, public ITimeStateProvider
+class AFallingPlatform : public AActor, public ITimeStateProvider, public IResettable
 {
 	GENERATED_BODY()
 
@@ -31,6 +32,15 @@ class AFallingPlatform : public AActor, public ITimeStateProvider
 	UTimeableComponent* Timeable;
 
 public:
+
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
 
 	/** Seconds of shaking before the drop */
 	UPROPERTY(EditAnywhere, Category="Platform", meta=(ClampMin="0"))

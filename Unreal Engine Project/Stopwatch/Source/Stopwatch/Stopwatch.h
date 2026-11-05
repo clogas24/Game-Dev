@@ -16,3 +16,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogStopwatch, Log, All);
  *  Returns null if the material is missing. Run Scripts/create_frozen_overlay.py to create it
  */
 UMaterialInstanceDynamic* MakeClockworkMaterial(UMeshComponent* Mesh);
+
+/** The base color of clockwork that kills: still M_Clockwork, so still aimable brass, but red so it reads as a hazard */
+inline const FLinearColor ClockworkHazardColor(0.6f, 0.07f, 0.04f);

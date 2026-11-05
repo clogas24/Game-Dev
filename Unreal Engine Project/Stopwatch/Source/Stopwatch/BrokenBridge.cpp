@@ -52,7 +52,8 @@ void ABrokenBridge::BuildPlanks()
 
 	for (int32 Index = 0; Index < PlankCount; ++Index)
 	{
-		const FName PlankName(*FString::Printf(TEXT("Plank_%d"), Index));
+		// unique, because the planks just destroyed keep their names until garbage collection
+		const FName PlankName = MakeUniqueObjectName(this, UStaticMeshComponent::StaticClass(), *FString::Printf(TEXT("Plank_%d"), Index));
 
 		UStaticMeshComponent* Plank = NewObject<UStaticMeshComponent>(this, PlankName, RF_Transient);
 		Plank->SetupAttachment(RootComponent);
@@ -70,4 +71,10 @@ void ABrokenBridge::BuildPlanks()
 		Plank->RegisterComponent();
 		Planks.Add(Plank);
 	}
+}
+
+void ABrokenBridge::ResetToStart()
+{
+	// back to the broken pose it was placed in
+	Timeable->ResetTimeState();
 }

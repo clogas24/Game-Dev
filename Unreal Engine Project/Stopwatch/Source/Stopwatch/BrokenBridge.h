@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "BrokenBridge.generated.h"
 
 class UStaticMeshComponent;
@@ -14,7 +15,7 @@ class UTimeableComponent;
  *  The hold time and speeds are on the Timeable component
  */
 UCLASS()
-class ABrokenBridge : public AActor
+class ABrokenBridge : public AActor, public IResettable
 {
 	GENERATED_BODY()
 
@@ -22,6 +23,15 @@ class ABrokenBridge : public AActor
 	UTimeableComponent* Timeable;
 
 public:
+
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
 
 	/** Length of the intact bridge, starting at the actor */
 	UPROPERTY(EditAnywhere, Category="Bridge", meta=(ClampMin="1"))

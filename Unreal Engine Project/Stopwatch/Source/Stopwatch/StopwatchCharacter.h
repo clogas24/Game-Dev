@@ -89,20 +89,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Camera")
 	void SetFirstPerson(bool bNewFirstPerson);
 
-	/** Seconds the screen takes to fade out on death, and again to fade back in */
-	UPROPERTY(EditAnywhere, Category="Death", meta=(ClampMin="0.01"))
-	float DeathFadeSeconds = 0.5f;
-
 	/** Called once per death, when the player dies */
 	UPROPERTY(BlueprintAssignable, Category="Death")
 	FOnPlayerDied OnPlayerDied;
 
-	/** The single entry point for death. Ignored while already dying */
+	/** The single entry point for death. Ignored while already dying, and outside play. AStopwatchGameMode does the respawn */
 	UFUNCTION(BlueprintCallable, Category="Death")
 	void KillPlayer(EDeathCause Cause);
 
 	UFUNCTION(BlueprintPure, Category="Death")
 	bool IsDying() const { return bIsDying; }
+
+	/** Called by the game mode once the player is back at a checkpoint */
+	void Revive();
 
 	/** Kills any player overlapping the zone. Level pieces call this from their dilated tick, so a stopped hazard is harmless */
 	static void KillOverlappingPlayer(const UPrimitiveComponent* Zone, EDeathCause Cause);
@@ -164,12 +163,11 @@ public:
 	/** Returns TimeAbility subobject **/
 	FORCEINLINE UTimeAbilityComponent* GetTimeAbility() const { return TimeAbility; }
 
+	/** For naming the jump key in prompts */
+	FORCEINLINE const UInputAction* GetJumpAction() const { return JumpAction; }
+
 private:
 
-	/** TEMPORARY until checkpoints exist: teleports to the PlayerStart and refills the sand */
-	void Respawn();
-
 	bool bIsDying = false;
-	FTimerHandle RespawnTimer;
 };
 

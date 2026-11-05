@@ -5,20 +5,18 @@
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
-#include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
-#include "GameFramework/PlayerStart.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Stopwatch.h"
+#include "StopwatchGameMode.h"
 #include "StopwatchPlayerController.h"
 #include "TimeAbilityComponent.h"
 #include "TimeSandComponent.h"
-#include "TimerManager.h"
 
 AStopwatchCharacter::AStopwatchCharacter()
 {
@@ -198,7 +196,10 @@ void AStopwatchCharacter::KillOverlappingPlayer(const UPrimitiveComponent* Zone,
 
 void AStopwatchCharacter::KillPlayer(EDeathCause Cause)
 {
-	if (bIsDying)
+	AStopwatchGameMode* GameMode = GetWorld()->GetAuthGameMode<AStopwatchGameMode>();
+
+	// nothing dies on the title or win screens
+	if (bIsDying || (GameMode && !GameMode->IsInPlay()))
 	{
 		return;
 	}
@@ -210,32 +211,15 @@ void AStopwatchCharacter::KillPlayer(EDeathCause Cause)
 
 	GetCharacterMovement()->DisableMovement();
 
-	if (const APlayerController* PlayerController = GetController<APlayerController>())
+	// without the game mode, as in tests of level pieces, the player stays dead
+	if (GameMode)
 	{
-		PlayerController->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, DeathFadeSeconds, FLinearColor::Black, false, true);
+		GameMode->HandlePlayerDeath(this, Cause);
 	}
-
-	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AStopwatchCharacter::Respawn, DeathFadeSeconds);
 }
 
-void AStopwatchCharacter::Respawn()
+void AStopwatchCharacter::Revive()
 {
-	// TEMPORARY: the checkpoint step replaces everything in this function
-	TActorIterator<APlayerStart> PlayerStart(GetWorld());
-
-	if (PlayerStart)
-	{
-		TeleportTo(PlayerStart->GetActorLocation(), PlayerStart->GetActorRotation());
-	}
-
-	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
-	TimeSand->SetSand(TimeSand->MaxSand);
-
-	if (const APlayerController* PlayerController = GetController<APlayerController>())
-	{
-		PlayerController->PlayerCameraManager->StartCameraFade(1.0f, 0.0f, DeathFadeSeconds, FLinearColor::Black);
-	}
-
 	bIsDying = false;
 }

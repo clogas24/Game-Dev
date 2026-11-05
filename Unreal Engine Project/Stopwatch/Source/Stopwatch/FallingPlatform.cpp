@@ -93,3 +93,13 @@ void AFallingPlatform::Tick(float DeltaSeconds)
 		Timeable->SetMaterialParameter(TEXT("Flash"), 0.5f + 0.5f * FMath::Sin(T * 25.0f));
 	}
 }
+
+void AFallingPlatform::ResetToStart()
+{
+	Timeable->ResetTimeState();
+	Mesh->SetSimulatePhysics(false);
+	SetActorLocationAndRotation(HomeLocation, HomeRotation, false, nullptr, ETeleportType::ResetPhysics);
+	Timeable->SetMaterialParameter(TEXT("Flash"), 0.0f);
+	ShakeElapsed = 0.0f;
+	bStepped = false;
+}

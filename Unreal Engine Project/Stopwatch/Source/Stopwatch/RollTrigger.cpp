@@ -103,3 +103,10 @@ void ARollTrigger::OnBoxEndOverlap(UPrimitiveComponent* OverlappedComponent, AAc
 		UpdateColor();
 	}
 }
+
+void ARollTrigger::ResetToStart()
+{
+	// whoever was standing on it was teleported off, and leaving counts down to 0 anyway
+	PressCount = 0;
+	UpdateColor();
+}

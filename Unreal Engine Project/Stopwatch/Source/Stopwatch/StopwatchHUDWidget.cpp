@@ -2,6 +2,7 @@
 
 #include "StopwatchHUDWidget.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/Border.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -9,6 +10,7 @@
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 #include "Engine/World.h"
+#include "StopwatchPlayerController.h"
 #include "TimerManager.h"
 #include "TimeSandComponent.h"
 
@@ -32,6 +34,41 @@ namespace
 	const FLinearColor HintColor(1.0f, 1.0f, 1.0f, 0.7f);
 	const FVector2D HintPosition(-32.0f, -32.0f);
 	const int32 HintFontSize = 14;
+
+	const FLinearColor BannerColor(1.0f, 0.85f, 0.5f, 1.0f);
+	const FLinearColor CollapseColor(1.0f, 0.75f, 0.3f, 1.0f);
+	const FLinearColor CollapseUrgentColor(1.0f, 0.15f, 0.1f, 1.0f);
+	const FLinearColor TutorialPanelColor(0.02f, 0.02f, 0.03f, 0.8f);
+	const int32 BannerFontSize = 34;
+	const int32 CollapseFontSize = 26;
+	const int32 CollapseUrgentFontSize = 38;
+	const int32 TutorialFontSize = 20;
+	const int32 DeathFontSize = 56;
+
+	void SetFontSize(UTextBlock* Text, int32 Size)
+	{
+		FSlateFontInfo Font = Text->GetFont();
+		Font.Size = Size;
+		Text->SetFont(Font);
+	}
+
+	/** Centered text, anchored at Anchor and hidden until shown */
+	UTextBlock* AddCenteredText(UWidgetTree* Tree, UCanvasPanel* Canvas, const FAnchors& Anchor, const FVector2D& Offset, int32 Size, const FLinearColor& Color)
+	{
+		UTextBlock* Text = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+		SetFontSize(Text, Size);
+		Text->SetColorAndOpacity(FSlateColor(Color));
+		Text->SetJustification(ETextJustify::Center);
+		Text->SetShadowOffset(FVector2D(2.0f, 2.0f));
+		Text->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f));
+		Text->SetVisibility(ESlateVisibility::Collapsed);
+		UCanvasPanelSlot* Slot = Canvas->AddChildToCanvas(Text);
+		Slot->SetAnchors(Anchor);
+		Slot->SetAlignment(FVector2D(0.5f, 0.5f));
+		Slot->SetPosition(Offset);
+		Slot->SetAutoSize(true);
+		return Text;
+	}
 }
 
 void UStopwatchHUDWidget::NativeOnInitialized()
@@ -93,6 +130,27 @@ void UStopwatchHUDWidget::NativeOnInitialized()
 	HintSlot->SetAlignment(FVector2D(1.0f, 1.0f));
 	HintSlot->SetPosition(HintPosition);
 	HintSlot->SetAutoSize(true);
+
+	CollapseTimer = AddCenteredText(WidgetTree, Canvas, FAnchors(0.5f, 0.0f), FVector2D(0.0f, 48.0f), CollapseFontSize, CollapseColor);
+	SectionBanner = AddCenteredText(WidgetTree, Canvas, FAnchors(0.5f, 0.0f), FVector2D(0.0f, 120.0f), BannerFontSize, BannerColor);
+	DeathCause = AddCenteredText(WidgetTree, Canvas, FAnchors(0.5f, 0.5f), FVector2D(0.0f, -80.0f), DeathFontSize, FLinearColor::White);
+
+	// above the sand bar, out of the way of the crosshair
+	TutorialPanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	TutorialPanel->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White, 8.0f));
+	TutorialPanel->SetBrushColor(TutorialPanelColor);
+	TutorialPanel->SetPadding(FMargin(20.0f, 14.0f));
+	TutorialPanel->SetVisibility(ESlateVisibility::Collapsed);
+	UCanvasPanelSlot* TutorialSlot = Canvas->AddChildToCanvas(TutorialPanel);
+	TutorialSlot->SetAnchors(FAnchors(0.5f, 1.0f));
+	TutorialSlot->SetAlignment(FVector2D(0.5f, 1.0f));
+	TutorialSlot->SetPosition(FVector2D(0.0f, -140.0f));
+	TutorialSlot->SetAutoSize(true);
+
+	TutorialText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	SetFontSize(TutorialText, TutorialFontSize);
+	TutorialText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	TutorialPanel->SetContent(TutorialText);
 	SetUsingGamepad(false);
 }
 
@@ -105,6 +163,15 @@ void UStopwatchHUDWidget::SetUsingGamepad(bool bGamepad)
 #endif
 
 	ControlsHint->SetText(FText::FromString(Text));
+
+	// the prompt names the keys of the device used last
+	if (TutorialPanel->GetVisibility() != ESlateVisibility::Collapsed)
+	{
+		if (const AStopwatchPlayerController* Controller = GetOwningPlayer<AStopwatchPlayerController>())
+		{
+			TutorialText->SetText(Controller->FormatPrompt(TutorialPrompt, bGamepad));
+		}
+	}
 }
 
 FText UStopwatchHUDWidget::GetControlsHintText() const
@@ -207,4 +274,83 @@ float UStopwatchHUDWidget::GetDotScale() const
 FLinearColor UStopwatchHUDWidget::GetDotColor() const
 {
 	return Crosshair->GetColorAndOpacity();
+}
+
+void UStopwatchHUDWidget::ShowSectionBanner(const FText& Name)
+{
+	SectionBanner->SetText(Name);
+	SectionBanner->SetVisibility(ESlateVisibility::HitTestInvisible);
+	GetWorld()->GetTimerManager().SetTimer(SectionTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		SectionBanner->SetVisibility(ESlateVisibility::Collapsed);
+	}), SectionBannerSeconds, false);
+}
+
+void UStopwatchHUDWidget::ShowTutorial(const FText& Prompt, float Seconds)
+{
+	TutorialPrompt = Prompt;
+	TutorialPanel->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	if (const AStopwatchPlayerController* Controller = GetOwningPlayer<AStopwatchPlayerController>())
+	{
+		TutorialText->SetText(Controller->FormatPrompt(Prompt, Controller->IsUsingGamepad()));
+	}
+
+	GetWorld()->GetTimerManager().SetTimer(TutorialTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		TutorialPanel->SetVisibility(ESlateVisibility::Collapsed);
+	}), Seconds, false);
+}
+
+void UStopwatchHUDWidget::ShowDeathCause(const FText& Cause)
+{
+	DeathCause->SetText(Cause);
+	DeathCause->SetVisibility(ESlateVisibility::HitTestInvisible);
+}
+
+void UStopwatchHUDWidget::HideDeathCause()
+{
+	DeathCause->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+FText UStopwatchHUDWidget::GetSectionBannerText() const
+{
+	return SectionBanner->GetVisibility() == ESlateVisibility::Collapsed ? FText::GetEmpty() : SectionBanner->GetText();
+}
+
+FText UStopwatchHUDWidget::GetTutorialText() const
+{
+	return TutorialPanel->GetVisibility() == ESlateVisibility::Collapsed ? FText::GetEmpty() : TutorialText->GetText();
+}
+
+FText UStopwatchHUDWidget::GetCollapseText() const
+{
+	return CollapseTimer->GetVisibility() == ESlateVisibility::Collapsed ? FText::GetEmpty() : CollapseTimer->GetText();
+}
+
+FText UStopwatchHUDWidget::GetDeathCauseText() const
+{
+	return DeathCause->GetVisibility() == ESlateVisibility::Collapsed ? FText::GetEmpty() : DeathCause->GetText();
+}
+
+void UStopwatchHUDWidget::HideCollapse()
+{
+	CollapseTimer->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+void UStopwatchHUDWidget::ShowCollapse(float SecondsLeft, bool bUrgent)
+{
+	const int32 Seconds = FMath::CeilToInt(SecondsLeft);
+	CollapseTimer->SetText(FText::FromString(FString::Printf(TEXT("THE TOWER IS COLLAPSING   %d:%02d"), Seconds / 60, Seconds % 60)));
+	CollapseTimer->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	if (bUrgent != bCollapseUrgentStyle)
+	{
+		bCollapseUrgentStyle = bUrgent;
+		SetFontSize(CollapseTimer, bUrgent ? CollapseUrgentFontSize : CollapseFontSize);
+		CollapseTimer->SetColorAndOpacity(FSlateColor(bUrgent ? CollapseUrgentColor : CollapseColor));
+	}
+
+	// urgent: pulses twice a second
+	CollapseTimer->SetRenderOpacity(bUrgent ? 0.65f + 0.35f * FMath::Cos(GetWorld()->GetTimeSeconds() * UE_TWO_PI * 2.0f) : 1.0f);
 }

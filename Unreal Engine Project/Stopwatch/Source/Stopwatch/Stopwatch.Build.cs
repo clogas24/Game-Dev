@@ -19,7 +19,9 @@ public class Stopwatch : ModuleRules
 			"GameplayStateTreeModule",
 			"UMG",
 			"Slate",
-			"SlateCore"
+			"SlateCore",
+			"EngineCameras",
+			"EngineSettings"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
