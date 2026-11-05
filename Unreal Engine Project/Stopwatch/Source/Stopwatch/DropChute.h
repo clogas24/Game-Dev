@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "PhysicsProp.h"
 #include "TimeStateProvider.h"
 #include "DropChute.generated.h"
@@ -15,7 +16,7 @@ class UTimeableComponent;
  *  Hangs in the air and releases an APhysicsProp every Interval seconds, or when ReleaseProp is called
  */
 UCLASS()
-class ADropChute : public AActor, public ITimeStateProvider
+class ADropChute : public AActor, public ITimeStateProvider, public IResettable
 {
 	GENERATED_BODY()
 
@@ -27,6 +28,15 @@ class ADropChute : public AActor, public ITimeStateProvider
 
 public:
 
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
+
 	/** Seconds between releases. 0 means only on trigger */
 	UPROPERTY(EditAnywhere, Category="Chute", meta=(ClampMin="0"))
 	float Interval = 4.0f;
@@ -36,6 +46,10 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Chute", meta=(ClampMin="0.1"))
 	float PropMass = 200.0f;
+
+	/** Linear damping of each prop. A few units make them float down, which widens the moment to freeze one */
+	UPROPERTY(EditAnywhere, Category="Chute", meta=(ClampMin="0"))
+	float PropLinearDamping = 0.0f;
 
 	/** Actor scale of each prop */
 	UPROPERTY(EditAnywhere, Category="Chute")

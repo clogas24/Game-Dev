@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "TimeStateProvider.h"
 #include "SpinningGear.generated.h"
 
@@ -16,7 +17,7 @@ class UTimeableComponent;
  *  A rotating disc the player can ride, or with bIsBlade a rotating arm that kills on contact
  */
 UCLASS()
-class ASpinningGear : public AActor, public ITimeStateProvider
+class ASpinningGear : public AActor, public ITimeStateProvider, public IResettable
 {
 	GENERATED_BODY()
 
@@ -35,6 +36,15 @@ class ASpinningGear : public AActor, public ITimeStateProvider
 	UTimeableComponent* Timeable;
 
 public:
+
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
 
 	/** Rotation speed, in degrees per second */
 	UPROPERTY(EditAnywhere, Category="Gear")

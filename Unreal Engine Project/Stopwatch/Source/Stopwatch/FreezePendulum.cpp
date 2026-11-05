@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "FreezePendulum.h"
+#include "Stopwatch.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -46,6 +47,11 @@ void AFreezePendulum::BeginPlay()
 	Super::BeginPlay();
 
 	ApplySettings();
+
+	if (bKillsPlayer)
+	{
+		Timeable->SetMaterialParameter(TEXT("BaseColor"), ClockworkHazardColor);
+	}
 }
 
 void AFreezePendulum::ApplySettings()
@@ -94,4 +100,10 @@ float AFreezePendulum::GetAngle() const
 void AFreezePendulum::UpdateSwing()
 {
 	Pivot->SetRelativeRotation(FQuat(SwingAxis.GetSafeNormal(), FMath::DegreesToRadians(GetAngle())));
+}
+
+void AFreezePendulum::ResetToStart()
+{
+	Timeable->ResetTimeState();
+	RestoreTimeState(0.0f);
 }

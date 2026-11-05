@@ -82,3 +82,9 @@ void AMovingPlatform::UpdatePose()
 {
 	Mesh->SetRelativeLocation(GetPathLocation(Elapsed));
 }
+
+void AMovingPlatform::ResetToStart()
+{
+	Timeable->ResetTimeState();
+	RestoreTimeState(0.0f);
+}

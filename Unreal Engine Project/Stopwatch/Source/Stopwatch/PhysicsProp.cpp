@@ -38,6 +38,7 @@ void APhysicsProp::ApplySettings()
 	Mesh->SetStaticMesh(Shape == EPropShape::Sphere ? SphereMesh : CubeMesh);
 	Mesh->SetMassOverrideInKg(NAME_None, Mass, true);
 	Mesh->SetAngularDamping(AngularDamping);
+	Mesh->SetLinearDamping(LinearDamping);
 }
 
 void APhysicsProp::BeginPlay()
@@ -86,5 +87,20 @@ void APhysicsProp::AutoReset()
 	SetActorTransform(SpawnTransform, false, nullptr, ETeleportType::ResetPhysics);
 	Mesh->SetPhysicsLinearVelocity(FVector::ZeroVector);
 	Mesh->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+	Timeable->ClearHistory();
+}
+
+void APhysicsProp::ResetToStart()
+{
+	Timeable->ResetTimeState();
+	SetActorTransform(SpawnTransform, false, nullptr, ETeleportType::ResetPhysics);
+	Mesh->SetSimulatePhysics(!bHeldUntilWoken);
+
+	if (!bHeldUntilWoken)
+	{
+		Mesh->SetPhysicsLinearVelocity(FVector::ZeroVector);
+		Mesh->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+	}
+
 	Timeable->ClearHistory();
 }

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "TimeStateProvider.h"
 #include "FreezePendulum.generated.h"
 
@@ -16,7 +17,7 @@ class UTimeableComponent;
  *  Its swing is driven by the dilated delta, so a freeze stops it and it resumes from the same angle
  */
 UCLASS()
-class AFreezePendulum : public AActor, public ITimeStateProvider
+class AFreezePendulum : public AActor, public ITimeStateProvider, public IResettable
 {
 	GENERATED_BODY()
 
@@ -38,6 +39,15 @@ class AFreezePendulum : public AActor, public ITimeStateProvider
 	UTimeableComponent* Timeable;
 
 public:
+
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
 
 	/** Largest swing angle, in degrees */
 	UPROPERTY(EditAnywhere, Category="Pendulum")

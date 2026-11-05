@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "TimeStateProvider.h"
 #include "MovingPlatform.generated.h"
 
@@ -14,7 +15,7 @@ class UTimeableComponent;
  *  A platform that ping-pongs between local points, easing at each one, and carries the player
  */
 UCLASS()
-class AMovingPlatform : public AActor, public ITimeStateProvider
+class AMovingPlatform : public AActor, public ITimeStateProvider, public IResettable
 {
 	GENERATED_BODY()
 
@@ -25,6 +26,15 @@ class AMovingPlatform : public AActor, public ITimeStateProvider
 	UTimeableComponent* Timeable;
 
 public:
+
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
 
 	/** Points to travel between, relative to the actor */
 	UPROPERTY(EditAnywhere, Category="Platform", meta=(MakeEditWidget))

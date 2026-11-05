@@ -3,8 +3,10 @@
 Run from the editor's Python console, or headless with Unreal closed:
   UnrealEditor-Cmd.exe <path>/Stopwatch.uproject -run=pythonscript -script="<path>/Scripts/build_test_arena.py"
 
-Layout: a hub runs along +X. Each station is a lane off the hub towards +Y, with its label at the entrance
-and a pad back to the hub at its end. Walking into a lane you face +Y, so +X is on your LEFT.
+Layout: a hub runs along +X. Each station is a lane off the hub towards +Y, with its label, a respawning hourglass, a checkpoint
+and a section trigger at the entrance, and a pad back to the hub at its end. Station 11 ends at the goal instead.
+The game starts at the title screen. Every IResettable piece gets its station's number as its SectionId, so dying
+after reaching a station's checkpoint resets that station. Walking into a lane you face +Y, so +X is on your LEFT.
 Heights assume the character's 127 unit jump and 500 unit/s walk.
 """
 
@@ -29,6 +31,11 @@ levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 cube_mesh = unreal.EditorAssetLibrary.load_asset(CUBE)
 built = []
 
+# what a checkpoint of a station resets
+RESETTABLE = (unreal.FreezePendulum, unreal.Crusher, unreal.MovingPlatform, unreal.SpinningGear, unreal.FallingPlatform,
+              unreal.BrokenBridge, unreal.DropChute, unreal.PhysicsProp, unreal.HourglassPickup, unreal.RollTrigger)
+current_section = 0  # set by station_label, which every station calls first
+
 
 def rot(pitch=0.0, yaw=0.0, roll=0.0):
     return unreal.Rotator(roll=roll, pitch=pitch, yaw=yaw)
@@ -47,6 +54,8 @@ def spawn(cls, location, rotation=None, label=None, scale=None, timeable=None, *
         actor.set_editor_property(name, value)
     for name, value in (timeable or {}).items():
         actor.get_component_by_class(unreal.TimeableComponent).set_editor_property(name, value)
+    if isinstance(actor, RESETTABLE):
+        actor.set_editor_property("section_id", current_section)
     built.append(actor)
     return actor
 
@@ -80,9 +89,33 @@ def station_x(number):
     return 1500.0 + (number - 1) * STATION_SPACING
 
 
+def trigger(cls, location, extent, rotation=None, label=None, **props):
+    """A box trigger standing on location"""
+    actor = spawn(cls, location, rotation=rotation, label=label, **props)
+    box_component = actor.get_component_by_class(unreal.BoxComponent)
+    box_component.set_box_extent(unreal.Vector(*extent), True)
+    box_component.set_relative_location(unreal.Vector(0.0, 0.0, extent[2]), False, False)
+    return actor
+
+
 def station_label(number, text):
-    """At the lane's entrance, facing the hub"""
-    label_text(station_x(number), LANE_START - 100.0, text)
+    """At the lane's entrance, facing the hub, with an hourglass in front of it, and the checkpoint and section trigger of the station"""
+    global current_section
+    current_section = number
+    x = station_x(number)
+    label_text(x, LANE_START - 100.0, text)
+
+    # where the return pads drop the player, so going back to a station also reaches its checkpoint
+    spawn(unreal.Checkpoint, (x, LANE_START - 450.0, 0.0), rotation=rot(yaw=90.0), label=f"Checkpoint_{number}", section_id=number)
+    trigger(unreal.SectionTrigger, (x, LANE_START - 300.0, 0.0), (1000.0, 450.0, 200.0), label=f"Section_{number}",
+            section_id=number, display_name=unreal.Text(text.split(chr(10))[0]))
+    # on the hub, so always on solid floor, and between the return pad's drop-off and the lane, so a retry walks through it
+    hourglass(station_x(number), LANE_START - 250.0)
+
+
+def hourglass(x, y, floor_z=0.0):
+    """Respawning sand pickup, so the arena never needs F6. Costs and max sand stay as they are, tuned in the real level"""
+    spawn(unreal.HourglassPickup, (x, y, floor_z + 80.0), label="Hourglass", respawn_time=8.0, sand_amount=35.0)
 
 
 def return_pad(number, y, z=0.0, dx=0.0):
@@ -131,10 +164,15 @@ def station_1():
     station_label(1, "1. PENDULUMS\n"
                      "1. Aim at a pendulum, LMB: it freezes for 5 s\n"
                      "2. Right lane: walk past the frozen pendulum\n"
-                     "3. Left lane: the blade kills. Freeze it, cross the beam")
+                     "3. Left lane: the blade kills. Freeze it, cross the beam\n"
+                     "Hourglasses refill sand. Some come back after a few seconds.")
 
     floor(x - 1200, x - 200, LANE_START, LANE_START + 1000)
-    spawn(unreal.FreezePendulum, (x - 700, LANE_START + 500, 450), label="Pendulum", arm_length=380.0)
+    pendulum = spawn(unreal.FreezePendulum, (x - 700, LANE_START + 500, 450), label="Pendulum", arm_length=380.0)
+    tutorial((x - 700, LANE_START + 60, 0.0), (500.0, 60.0, 150.0), pendulum,
+             "1. Aim the dot at the brass pendulum\n"
+             "2. Press {freeze} to freeze it for 5 s\n"
+             "3. Walk past while it's frozen")
     return_pad(1, LANE_START + 900, dx=-700)
 
     floor(x + 200, x + 1000, LANE_START, LANE_START + 600)
@@ -168,23 +206,7 @@ def station_2():
 
 def station_3():
     x = station_x(3)
-    station_label(3, "3. HOURGLASSES\n"
-                     "1. Aim at the pendulum, LMB: the sand bar drops\n"
-                     "2. Left hourglass: +35 sand, gone for good\n"
-                     "3. Right hourglass: +35 sand, back after 5 s\n"
-                     "With a full bar they wait for you to spend")
-
-    # everything in view from the entrance: the pickups either side, and the pendulum to spend sand on between them
-    floor(x - 800, x + 800, LANE_START, LANE_START + 1000)
-    spawn(unreal.HourglassPickup, (x + 300, LANE_START + 250, 80), label="Hourglass_Once")
-    spawn(unreal.HourglassPickup, (x - 300, LANE_START + 250, 80), label="Hourglass_Respawning", respawn_time=5.0)
-    spawn(unreal.FreezePendulum, (x, LANE_START + 700, 450), label="SpendSandHere", arm_length=380.0)
-    return_pad(3, LANE_START + 850, dx=600)
-
-
-def station_4():
-    x = station_x(4)
-    station_label(4, "4. DROP CHUTE\n"
+    station_label(3, "3. DROP CHUTE\n"
                      "1. The gap is too wide to jump\n"
                      "2. A crate drops every 3 s. LMB it level with the floor\n"
                      "3. Step across on it")
@@ -193,12 +215,14 @@ def station_4():
     floor(x - 500, x + 500, LANE_START + 1400, LANE_START + 2000)
     spawn(unreal.DropChute, (x, LANE_START + 1000, 600), label="DropChute",
           interval=3.0, prop_scale=unreal.Vector(2.5, 2.5, 0.5))
-    return_pad(4, LANE_START + 1800)
+    # at the gap's edge, where you wait for a crate, so a missed freeze is retried without walking back
+    hourglass(x + 350, LANE_START + 450)
+    return_pad(3, LANE_START + 1800)
 
 
-def station_5():
-    x = station_x(5)
-    station_label(5, "5. BOULDER RAMP\n"
+def station_4():
+    x = station_x(4)
+    station_label(4, "4. BOULDER RAMP\n"
                      "1. Step on the red plate on the left: the boulder rolls down\n"
                      "2. Aim at the boulder, RMB to rewind it up the ramp\n"
                      "3. Step off and back on the plate to roll it again")
@@ -218,6 +242,20 @@ def station_5():
                  label="Ramp", scale=(width / 100, length / 100, thickness / 100))
     ramp.static_mesh_component.set_static_mesh(cube_mesh)
 
+    # walls along both sides of the slope and across its top, so whoever walks up to the boulder can't fall off.
+    # They follow the slope at 150 above it, higher than a jump, and low enough to keep the ramp in view from the plate
+    rail_height = 150.0
+    normal = (-math.sin(angle), math.cos(angle))
+    # from the slab's underside to rail_height above its top
+    lift = rail_height / 2
+    for side in (-1, 1):
+        rail = spawn(unreal.StaticMeshActor,
+                     (x + side * (width / 2 + 25), center_y + normal[0] * lift, center_z + normal[1] * lift),
+                     rotation=rot(roll=-math.degrees(angle)), label="RampRail",
+                     scale=(0.5, length / 100, (thickness + rail_height) / 100))
+        rail.static_mesh_component.set_static_mesh(cube_mesh)
+    box(x - width / 2 - 50, x + width / 2 + 50, LANE_START + 500 + run, LANE_START + 550 + run, 0, rise + rail_height, "RampBackWall")
+
     # rails and a backstop keep the boulder in its lane, so it comes to rest within its recording
     box(x - width / 2 - 50, x - width / 2, LANE_START, LANE_START + 500, 0, 120, "Rail")
     box(x + width / 2, x + width / 2 + 50, LANE_START, LANE_START + 500, 0, 120, "Rail")
@@ -236,12 +274,16 @@ def station_5():
     # beside the foot of the ramp, out of the boulder's way, with the whole ramp in view
     spawn(unreal.RollTrigger, (x + 550, LANE_START + 250, 0), label="PressurePlate",
           target_prop=boulder, push_velocity=unreal.Vector(0, -100, 0))
-    return_pad(5, LANE_START + 1900, dx=-600)
+    tutorial((x, LANE_START + 60, 0.0), (1000.0, 60.0, 150.0), boulder,
+             "1. Step on the red plate: the boulder rolls down\n"
+             "2. Aim at the boulder\n"
+             "3. Press {rewind} to send it back up the ramp")
+    return_pad(4, LANE_START + 1900, dx=-600)
 
 
-def station_6():
-    x = station_x(6)
-    station_label(6, "6. FALLING PLATFORM\n"
+def station_5():
+    x = station_x(5)
+    station_label(5, "5. FALLING PLATFORM\n"
                      "1. Step on the platform: it shakes and flashes red\n"
                      "2. Jump back to this side: it falls into the pit\n"
                      "3. Aim at it down there, RMB: it rewinds and stays up\n"
@@ -254,7 +296,7 @@ def station_6():
     # level with the floors, and too long to outrun in the 1 second shake. The gaps either side stop physics flinging it away when it drops
     gap = 20.0
     spawn(unreal.FallingPlatform, (x, LANE_START + 1150, -15), label="FallingPlatform", scale=(4, (1100 - gap * 2) / 100, 0.3))
-    return_pad(6, LANE_START + 2100)
+    return_pad(5, LANE_START + 2100)
 
 
 def bridge_station(number, pit, length, hold, text):
@@ -272,12 +314,14 @@ def bridge_station(number, pit, length, hold, text):
           label=f"Bridge_Hold{hold:.0f}", bridge_length=length, plank_count=max(8, int(length / 150)),
           fall_depth=top - (PIT_TOP + 15.0), scatter=150.0,
           timeable={"hold_duration": hold})
+    # halfway along the bridge, so whoever rewound it has sand for the freeze on it. Reachable only while it's up
+    hourglass(x, LANE_START + 600 + pit / 2, floor_z=top)
     return_pad(number, LANE_START + 1000 + pit)
 
 
-def station_9():
-    x = station_x(9)
-    station_label(9, "9. REWIND THEN FREEZE\n"
+def station_8():
+    x = station_x(8)
+    station_label(8, "8. REWIND THEN FREEZE\n"
                      "1. Step on the red plate on the right: the block falls off the tower\n"
                      "2. Stand on the low step, aim at the block, RMB to rewind it\n"
                      "3. As it rises past you, LMB to freeze it\n"
@@ -299,13 +343,14 @@ def station_9():
     spawn(unreal.RollTrigger, (x - 700, LANE_START + 300, 0), label="PressurePlate",
           target_prop=block, push_velocity=unreal.Vector(-20, 0, 0))
 
-    spawn(unreal.HourglassPickup, (x - 700, LANE_START + 1000, 80), label="Hourglass_Respawning", respawn_time=5.0)
-    return_pad(9, LANE_START + 1550, z=260.0)
+    # a rewind and a freeze per attempt, and each retry restarts from the plate
+    hourglass(x - 700, LANE_START + 1000)
+    return_pad(8, LANE_START + 1550, z=260.0)
 
 
-def station_10():
-    x = station_x(10)
-    station_label(10, "10. CRUSHER CORRIDOR\n"
+def station_9():
+    x = station_x(9)
+    station_label(9, "9. CRUSHER CORRIDOR\n"
                       "1. A crusher kills you when it slams\n"
                       "2. Run under one while it's up, or LMB to freeze it up there\n"
                       "3. The green pad at the end takes you back")
@@ -317,12 +362,14 @@ def station_10():
     head = unreal.Vector(460, 460, 150)
     spawn(unreal.Crusher, (x, LANE_START + 800, 0), label="Crusher_1", head_size=head)
     spawn(unreal.Crusher, (x, LANE_START + 1600, 0), label="Crusher_2", head_size=head, phase_offset=1.65)
-    return_pad(10, LANE_START + 2150)
+    # between the crushers, clear of both heads, for a second freeze
+    hourglass(x, LANE_START + 1200)
+    return_pad(9, LANE_START + 2150)
 
 
-def station_11():
-    x = station_x(11)
-    station_label(11, "11. GEAR AND PLATFORM\n"
+def station_10():
+    x = station_x(10)
+    station_label(10, "10. GEAR AND PLATFORM\n"
                       "1. Ride the moving platform across\n"
                       "2. The spinning blade kills: jump it, or LMB to freeze it\n"
                       "3. The disc on the right is safe to ride")
@@ -336,7 +383,43 @@ def station_11():
     # low enough that its kill zone stops short of a jump's 127 units
     spawn(unreal.SpinningGear, (x, LANE_START + 1600, 60), label="BladeGear", is_blade=True, radius=280.0, speed=100.0)
     spawn(unreal.SpinningGear, (x - 850, LANE_START + 300, 20), label="SafeDisc", radius=250.0, speed=40.0)
-    return_pad(11, LANE_START + 3000)
+    # over the platform's path before the blade, picked up while riding, for the freeze. The platform's top is at 0
+    hourglass(x, LANE_START + 1100)
+    return_pad(10, LANE_START + 3000)
+
+
+def tutorial(location, extent, focus, prompt):
+    """A prompt shown once, the first time the player walks in. {freeze}, {rewind} and {jump} become the player's keys"""
+    trigger(unreal.TutorialTrigger, location, extent, label="Tutorial", prompt=unreal.Text(prompt), focus_target=focus)
+
+
+def station_11():
+    x = station_x(11)
+    station_label(11, "11. FINALE TEST\n"
+                      "1. Walking in starts a 30 s collapse: reach the clock at the top\n"
+                      "2. Freeze the crusher to get under it, and the blade to get past it\n"
+                      "3. Dying restarts the countdown from the checkpoint")
+
+    floor(x - 500, x + 500, LANE_START, LANE_START + 800)
+    trigger(unreal.CollapseTrigger, (x, LANE_START + 500, 0.0), (500.0, 60.0, 200.0), label="CollapseTrigger", collapse_seconds=30.0)
+
+    # four steps of 100, each a jump up, with a hazard on the middle two
+    width = 300.0
+    depth = 300.0
+    for step in range(4):
+        y0 = LANE_START + 800 + step * depth
+        box(x - width, x + width, y0, y0 + depth, 0, (step + 1) * 100.0, "Step")
+
+    spawn(unreal.Crusher, (x, LANE_START + 1250, 200), label="FinaleCrusher", head_size=unreal.Vector(560, 260, 150))
+    spawn(unreal.FreezePendulum, (x, LANE_START + 1550, 300 + 480), label="FinaleBlade",
+          arm_length=400.0, swing_axis=unreal.Vector(0, 1, 0), kills_player=True)
+    hourglass(x - 200, LANE_START + 950, floor_z=100.0)
+
+    # the goal, and a clock face behind it to aim for
+    trigger(unreal.GoalTrigger, (x, LANE_START + 1850, 400.0), (width, 150.0, 150.0), label="Goal")
+    face = spawn(unreal.StaticMeshActor, (x, LANE_START + 2150, 750), rotation=rot(pitch=90.0), label="ClockFace", scale=(6, 6, 0.3))
+    face.static_mesh_component.set_static_mesh(unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cylinder.Cylinder"))
+    label_text(x, LANE_START + 2050, "GOAL", z=1150.0, size=60.0)
 
 
 def main():
@@ -356,15 +439,15 @@ def main():
     station_3()
     station_4()
     station_5()
-    station_6()
-    bridge_station(7, 1300.0, 1500.0, 0.0, "7. BROKEN BRIDGE, SAFE\n"
+    bridge_station(6, 1300.0, 1500.0, 0.0, "6. BROKEN BRIDGE, SAFE\n"
                                            "1. Aim at the broken planks in the pit\n"
                                            "2. RMB to rewind the bridge. It stays up\n"
                                            "3. Walk across")
-    bridge_station(8, 2400.0, 2600.0, 4.0, "8. BROKEN BRIDGE, 4 SECONDS\n"
+    bridge_station(7, 2400.0, 2600.0, 4.0, "7. BROKEN BRIDGE, 4 SECONDS\n"
                                            "1. Aim at the broken planks in the pit, RMB to rewind the bridge\n"
                                            "2. It falls again after 4 s, and crossing takes 5\n"
                                            "3. On the bridge, aim at it and LMB: the countdown pauses")
+    station_8()
     station_9()
     station_10()
     station_11()

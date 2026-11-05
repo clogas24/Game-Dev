@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HourglassPickup.h"
+#include "PlaytestLogger.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -91,19 +92,24 @@ void AHourglassPickup::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedCompon
 
 void AHourglassPickup::Collect(UTimeSandComponent* Sand)
 {
+	const float Before = Sand->GetCurrentSand();
 	Sand->Add(SandAmount);
 	WaitingSand = nullptr;
 
-	if (RespawnTime <= 0.0f)
+	if (UPlaytestLogger* Logger = UPlaytestLogger::Get(this))
 	{
-		Destroy();
-		return;
+		Logger->RecordSandPickedUp(Sand->GetCurrentSand() - Before);
 	}
 
+	// hidden rather than destroyed, so a checkpoint reset can bring back even a one-off pickup
 	SetActorHiddenInGame(true);
 	SetActorEnableCollision(false);
 	SetActorTickEnabled(false);
-	GetWorld()->GetTimerManager().SetTimer(RespawnTimer, this, &AHourglassPickup::Respawn, RespawnTime);
+
+	if (RespawnTime > 0.0f)
+	{
+		GetWorld()->GetTimerManager().SetTimer(RespawnTimer, this, &AHourglassPickup::Respawn, RespawnTime);
+	}
 }
 
 void AHourglassPickup::Respawn()
@@ -111,4 +117,11 @@ void AHourglassPickup::Respawn()
 	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
 	SetActorTickEnabled(true);
+}
+
+void AHourglassPickup::ResetToStart()
+{
+	GetWorld()->GetTimerManager().ClearTimer(RespawnTimer);
+	WaitingSand = nullptr;
+	Respawn();
 }

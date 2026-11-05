@@ -70,7 +70,24 @@ void ADropChute::ReleaseProp()
 	APhysicsProp* Prop = GetWorld()->SpawnActorDeferred<APhysicsProp>(APhysicsProp::StaticClass(), SpawnTransform, this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	Prop->Shape = PropShape;
 	Prop->Mass = PropMass;
+	Prop->LinearDamping = PropLinearDamping;
 	Prop->FinishSpawning(SpawnTransform);
 
 	LiveProps.Add(Prop);
+}
+
+void ADropChute::ResetToStart()
+{
+	Timeable->ResetTimeState();
+
+	for (const TWeakObjectPtr<APhysicsProp>& Prop : LiveProps)
+	{
+		if (Prop.IsValid())
+		{
+			Prop->Destroy();
+		}
+	}
+
+	LiveProps.Reset();
+	Elapsed = 0.0f;
 }

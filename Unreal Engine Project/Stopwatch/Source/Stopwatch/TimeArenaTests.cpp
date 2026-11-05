@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "FallingPlatform.h"
 #include "FreezePendulum.h"
+#include "HourglassPickup.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
@@ -17,6 +18,9 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "KillVolume.h"
+#include "LevelTriggers.h"
+#include "Misc/FileHelper.h"
+#include "PlaytestLogger.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ReturnPad.h"
 #include "RollTrigger.h"
@@ -26,6 +30,9 @@
 #include "SpinningGear.h"
 #include "StopwatchCharacter.h"
 #include "StopwatchHUDWidget.h"
+#include "StopwatchGameMode.h"
+#include "StopwatchMenuWidget.h"
+#include "StopwatchTests.h"
 #include "StopwatchPlayerController.h"
 #include "TimeAbilityComponent.h"
 #include "TimeableComponent.h"
@@ -34,59 +41,21 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-namespace
+using namespace StopwatchTests;
+
+namespace ArenaTests
 {
-	template <typename T, typename TPredicate>
-	T* FindActor(UWorld* World, TPredicate Predicate)
-	{
-		for (TActorIterator<T> It(World); It; ++It)
-		{
-			if (Predicate(*It))
-			{
-				return *It;
-			}
-		}
-
-		return nullptr;
-	}
-
-	template <typename T>
-	int32 CountActors(UWorld* World)
-	{
-		int32 Count = 0;
-
-		for (TActorIterator<T> It(World); It; ++It)
-		{
-			++Count;
-		}
-
-		return Count;
-	}
-
 	/** The running game's world, if it's playing the arena */
 	UWorld* FindArenaWorld()
 	{
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			if (Context.WorldType == EWorldType::Game && Context.World() && Context.World()->GetName() == TEXT("Lvl_TimeTest"))
-			{
-				return Context.World();
-			}
-		}
-
-		return nullptr;
-	}
-
-	/** Reads a parameter of the clockwork material Timeable gave the mesh, or -1 if it has none */
-	float GetMaterialScalar(const UPrimitiveComponent* Mesh, FName Name)
-	{
-		UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0));
-		return Material ? Material->K2_GetScalarParameterValue(Name) : -1.0f;
+		return FindGameWorld(TEXT("Lvl_TimeTest"));
 	}
 
 	/** Must match the script's PIT_TOP */
 	constexpr double PitTop = -450.0;
 }
+
+using namespace ArenaTests;
 
 /**
  *  Plays the saved arena, so needs the game running it:
@@ -112,15 +81,40 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 		return true;
 	}
 
+	// the first test to run sees the game as it boots
+	AStopwatchGameMode* GameMode = World->GetAuthGameMode<AStopwatchGameMode>();
+	TestNotNull(TEXT("Stopwatch game mode"), GameMode);
+	TestTrue(TEXT("Starts at the title screen"), EnsurePlaying(World));
+
 	// what was saved survived the save
 	TestEqual(TEXT("One PlayerStart"), CountActors<APlayerStart>(World), 1);
 	TestEqual(TEXT("One kill volume"), CountActors<AKillVolume>(World), 1);
 	TestEqual(TEXT("Three pendulums"), CountActors<AFreezePendulum>(World), 3);
 	TestEqual(TEXT("Two bridges"), CountActors<ABrokenBridge>(World), 2);
-	TestEqual(TEXT("Two crushers"), CountActors<ACrusher>(World), 2);
+	TestEqual(TEXT("Three crushers"), CountActors<ACrusher>(World), 3);
 	TestEqual(TEXT("Two gears"), CountActors<ASpinningGear>(World), 2);
 	TestEqual(TEXT("Two pressure plates"), CountActors<ARollTrigger>(World), 2);
-	TestEqual(TEXT("A return pad at the end of every station, two for the first"), CountActors<AReturnPad>(World), 12);
+	TestEqual(TEXT("A return pad at the end of every station but the finale, two for the first"), CountActors<AReturnPad>(World), 11);
+	TestEqual(TEXT("An hourglass at every station's entrance, and partway through the drop chute, bridges, rewind then freeze, crusher corridor, gear and finale"), CountActors<AHourglassPickup>(World), 18);
+	TestEqual(TEXT("A checkpoint per station"), CountActors<ACheckpoint>(World), 11);
+	TestEqual(TEXT("A section trigger per station"), CountActors<ASectionTrigger>(World), 11);
+	TestEqual(TEXT("Freeze and rewind tutorials"), CountActors<ATutorialTrigger>(World), 2);
+	TestEqual(TEXT("One goal"), CountActors<AGoalTrigger>(World), 1);
+	TestEqual(TEXT("One collapse trigger"), CountActors<ACollapseTrigger>(World), 1);
+
+	// every piece a checkpoint resets belongs to a station
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (const IResettable* Resettable = Cast<IResettable>(*It); Resettable && It->GetOwner() == nullptr)
+		{
+			TestTrue(FString::Printf(TEXT("%s is in a station's section"), *It->GetActorNameOrLabel()), Resettable->GetSectionId() >= 1 && Resettable->GetSectionId() <= 11);
+		}
+	}
+
+	for (TActorIterator<AHourglassPickup> It(World); It; ++It)
+	{
+		TestTrue(FString::Printf(TEXT("%s respawns after 8 s with 35 sand"), *It->GetName()), It->RespawnTime == 8.0f && It->SandAmount == 35.0f);
+	}
 
 	// everything timeable looks like clockwork
 	for (TActorIterator<AActor> It(World); It; ++It)
@@ -231,7 +225,8 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			{
 				NextStep();
 			}
-			else if (SinceStep > 3.0)
+			// longer than a crusher's 3.3 s cycle
+			else if (SinceStep > 4.0)
 			{
 				AddError(FString::Printf(TEXT("%s didn't kill the player"), What));
 				NextStep();
@@ -312,13 +307,18 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			return false;
 
 		case 3:
-			if (Character->IsDying())
+			if (!GameMode->IsInPlay())
 			{
 				return false;
 			}
 
-			TestTrue(TEXT("Respawned at the PlayerStart"), FVector::Dist2D(Character->GetActorLocation(), State->StartLocation) < 100.0);
-			TestEqual(TEXT("Respawn refills the sand"), Sand->GetCurrentSand(), Sand->MaxSand);
+		{
+			// the tests' teleports can pass through checkpoints
+			const ACheckpoint* Checkpoint = GameMode->GetCurrentCheckpoint();
+			const FVector Expected = Checkpoint ? Checkpoint->GetActorLocation() : State->StartLocation;
+			TestTrue(TEXT("Respawned at the last checkpoint, or the PlayerStart before one"), FVector::Dist2D(Character->GetActorLocation(), Expected) < 100.0);
+			TestTrue(TEXT("Respawn tops the sand up"), Sand->GetCurrentSand() >= (Checkpoint ? Checkpoint->MinSandOnRespawn : GameMode->DefaultMinSandOnRespawn));
+		}
 			NextStep();
 			return false;
 
@@ -329,7 +329,7 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			return false;
 
 		case 5:
-			if (!Character->IsDying())
+			if (GameMode->IsInPlay())
 			{
 				NextStep();
 			}
@@ -343,7 +343,7 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			return false;
 
 		case 7:
-			if (!Character->IsDying())
+			if (GameMode->IsInPlay())
 			{
 				NextStep();
 			}
@@ -362,7 +362,7 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			return false;
 
 		case 9:
-			if (!Character->IsDying())
+			if (GameMode->IsInPlay())
 			{
 				NextStep();
 			}
@@ -372,14 +372,24 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 		case 10:
 		{
 			// aiming for real, through the camera: a crate's freezable, and the crosshair knows
+			// moved across the floor at the height the player stands at: on the hub after the respawn, level with station 2's floor
+			// any other height, and the movement settles the player between the place and the view
 			const FVector Target = Crate->GetActorLocation();
-			Place(Target + FVector(-500.0f, 0.0f, 0.0f));
+			Place(FVector(Target.X - 500.0f, Target.Y, Character->GetActorLocation().Z));
 			Controller->SetControlRotation((Target - Controller->PlayerCameraManager->GetCameraLocation()).Rotation());
+
+			// the view is a frame behind, so the player, placed by the crate, has to be still for them to match
+			if (Crate->GetMesh()->GetPhysicsLinearVelocity().Size() > 1.0f)
+			{
+				State->StepTime = Now;
+				return false;
+			}
 
 			if (SinceStep > 0.5)
 			{
 				const TCHAR* View = Character->bFirstPerson ? TEXT("first person") : TEXT("third person");
 				const UCameraComponent* Camera = Character->bFirstPerson ? Character->GetFirstPersonCamera() : Character->GetFollowCamera();
+				AddInfo(FString::Printf(TEXT("View %s, %s camera %s"), *Controller->PlayerCameraManager->GetCameraLocation().ToString(), View, *Camera->GetComponentLocation().ToString()));
 				TestTrue(FString::Printf(TEXT("View comes from the %s camera"), View), Controller->PlayerCameraManager->GetCameraLocation().Equals(Camera->GetComponentLocation(), 1.0));
 				TestEqual(FString::Printf(TEXT("Aim state on a crate, %s"), View), (int32)Ability->GetAimState(), (int32)ETimeAimState::CanFreeze);
 				TestEqual(FString::Printf(TEXT("Aim target is the crate, %s"), View), Ability->GetAimTarget(), Crate->GetTimeable());
@@ -398,7 +408,7 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 
 				Character->SetFirstPerson(true);
 
-				// station 9: what its trigger does
+				// station 8: what its trigger does
 				Block->Wake(FVector(-20.0f, 0.0f, 0.0f));
 				NextStep();
 			}
@@ -486,6 +496,9 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 			}
 
 			TestTrue(TEXT("The trigger rolls it again"), Boulder->GetActorLocation().Z < State->BoulderZ - 50.0f);
+
+			// at the empty sky, so nothing moving through the aim can pop the dot
+			Controller->SetControlRotation(FRotator(80.0f, 0.0f, 0.0f));
 			NextStep();
 			return false;
 
@@ -576,7 +589,7 @@ bool FTimeArenaTest::RunTest(const FString& Parameters)
 }
 
 /**
- *  Walks the player through station 6 with movement input, as a player would, then onto every return pad
+ *  Walks the player through station 5 with movement input, as a player would, then onto every return pad
  *  Needs the game running the arena, like Stopwatch.Arena.Play
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeArenaWalkthroughTest, "Stopwatch.Arena.Walkthrough", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
@@ -781,6 +794,386 @@ bool FTimeArenaWalkthroughTest::RunTest(const FString& Parameters)
 			++State->Pad;
 			State->Step = 8;
 			return false;
+
+		default:
+			return true;
+		}
+	}));
+
+	return true;
+}
+
+/**
+ *  Pause, a tutorial, checkpoints, a death and what the respawn resets. Needs the game running the arena, like Stopwatch.Arena.Play
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeArenaRespawnTest, "Stopwatch.Arena.Respawn", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTimeArenaRespawnTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = FindArenaWorld();
+
+	if (!World)
+	{
+		AddInfo(TEXT("Skipped: Lvl_TimeTest isn't the running game's level."));
+		return true;
+	}
+
+	EnsurePlaying(World);
+
+	AStopwatchPlayerController* Controller = Cast<AStopwatchPlayerController>(World->GetFirstPlayerController());
+	AStopwatchCharacter* Character = Controller ? Controller->GetPawn<AStopwatchCharacter>() : nullptr;
+	AStopwatchGameMode* GameMode = World->GetAuthGameMode<AStopwatchGameMode>();
+	UPlaytestLogger* Logger = UPlaytestLogger::Get(World);
+
+	auto FindCheckpoint = [World](int32 Section)
+	{
+		return FindActor<ACheckpoint>(World, [Section](const ACheckpoint* Actor) { return Actor->SectionId == Section; });
+	};
+
+	ACheckpoint* Two = FindCheckpoint(2);
+	ACheckpoint* Three = FindCheckpoint(3);
+	ADropChute* Chute = FindActor<ADropChute>(World, [](const ADropChute*) { return true; });
+	ATutorialTrigger* FreezeTutorial = FindActor<ATutorialTrigger>(World, [](const ATutorialTrigger* Actor) { return Cast<AFreezePendulum>(Actor->FocusTarget) != nullptr; });
+	AHourglassPickup* Hourglass = Three ? FindActor<AHourglassPickup>(World, [Three](const AHourglassPickup* Actor) { return FVector::Dist2D(Actor->GetActorLocation(), Three->GetActorLocation()) < 300.0; }) : nullptr;
+
+	if (!TestNotNull(TEXT("Player spawned"), Character) || !TestNotNull(TEXT("Game mode"), GameMode) || !TestNotNull(TEXT("Logger"), Logger)
+		|| !TestNotNull(TEXT("Checkpoint 2"), Two) || !TestNotNull(TEXT("Checkpoint 3"), Three) || !TestNotNull(TEXT("Chute"), Chute)
+		|| !TestNotNull(TEXT("Freeze tutorial"), FreezeTutorial) || !TestNotNull(TEXT("Station 3's hourglass"), Hourglass))
+	{
+		return true;
+	}
+
+	UStopwatchHUDWidget* HUD = Controller->GetHUDWidget();
+
+	// a real pause, with the menu and the log folder
+	GameMode->TogglePause();
+	TestEqual(TEXT("Paused"), GameMode->GetMode(), EStopwatchMode::Paused);
+	TestTrue(TEXT("The world stops"), World->IsPaused());
+	TestTrue(TEXT("Cursor shown"), Controller->ShouldShowMouseCursor());
+	TestTrue(TEXT("Pause menu"), Controller->GetMenuWidget()->GetScreenText().Contains(TEXT("PAUSED")));
+	TestTrue(TEXT("Pause menu shows the log folder"), Controller->GetMenuWidget()->GetScreenText().Contains(Logger->GetFolder()));
+	GameMode->TogglePause();
+	TestEqual(TEXT("Resumed"), GameMode->GetMode(), EStopwatchMode::Playing);
+	TestFalse(TEXT("The world runs"), World->IsPaused());
+	TestFalse(TEXT("Cursor hidden"), Controller->ShouldShowMouseCursor());
+
+	struct FState
+	{
+		int32 Step = 0;
+		double StepTime = 0.0;
+	};
+	TSharedRef<FState> State = MakeShared<FState>();
+	State->StepTime = World->GetTimeSeconds();
+
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([=, this]()
+	{
+		const double Now = World->GetTimeSeconds();
+		const double SinceStep = Now - State->StepTime;
+		UTimeSandComponent* Sand = Character->GetTimeSand();
+
+		auto NextStep = [State, Now]()
+		{
+			++State->Step;
+			State->StepTime = Now;
+		};
+
+		auto Place = [Character](const FVector& Feet)
+		{
+			Character->SetActorLocation(Feet + FVector(0.0f, 0.0f, 100.0f), false, nullptr, ETeleportType::TeleportPhysics);
+		};
+
+		switch (State->Step)
+		{
+		case 0:
+			Place(FreezeTutorial->GetActorLocation());
+			NextStep();
+			return false;
+
+		case 1:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			AddInfo(FString::Printf(TEXT("Tutorial: %s"), *HUD->GetTutorialText().ToString()));
+			TestTrue(TEXT("Tutorial names the mouse button"), HUD->GetTutorialText().ToString().Contains(TEXT("Press LMB")));
+			HUD->SetUsingGamepad(true);
+			TestTrue(TEXT("Tutorial follows the gamepad"), HUD->GetTutorialText().ToString().Contains(TEXT("Press RT")));
+			HUD->SetUsingGamepad(false);
+
+			Place(Three->GetActorLocation());
+			NextStep();
+			return false;
+
+		case 2:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestEqual(TEXT("Checkpoint 3 reached"), GameMode->GetCurrentCheckpoint(), Three);
+			TestTrue(TEXT("Checkpoint lit"), Three->IsLit());
+			TestEqual(TEXT("In section 3"), GameMode->GetCurrentSectionId(), 3);
+			TestEqual(TEXT("Section name on the HUD"), HUD->GetSectionBannerText().ToString(), FString(TEXT("3. DROP CHUTE")));
+
+			Place(Two->GetActorLocation());
+			NextStep();
+			return false;
+
+		case 3:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestEqual(TEXT("An earlier checkpoint doesn't take over"), GameMode->GetCurrentCheckpoint(), Three);
+			Sand->SetSand(50.0f);
+			Place(Hourglass->GetActorLocation() - FVector(0.0f, 0.0f, 80.0f));
+			NextStep();
+			return false;
+
+		case 4:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestFalse(TEXT("Hourglass taken"), Hourglass->IsAvailable());
+			TestEqual(TEXT("Hourglass gives 35"), Sand->GetCurrentSand(), 85.0f);
+
+			Chute->GetTimeable()->Freeze(10.0f);
+			Sand->SetSand(10.0f);
+			Character->KillPlayer(EDeathCause::Crushed);
+			TestEqual(TEXT("Respawning"), GameMode->GetMode(), EStopwatchMode::Respawning);
+			TestEqual(TEXT("Death cause shown"), HUD->GetDeathCauseText().ToString(), FString(TEXT("Crushed")));
+			NextStep();
+			return false;
+
+		case 5:
+			if (Character->IsDying())
+			{
+				if (SinceStep > 3.0)
+				{
+					AddError(TEXT("Never respawned"));
+					return true;
+				}
+
+				return false;
+			}
+
+			AddInfo(FString::Printf(TEXT("Back %.2fs after dying"), SinceStep));
+			TestTrue(TEXT("Teleported after the fade out"), SinceStep >= GameMode->RespawnFadeSeconds - 0.05);
+			TestTrue(TEXT("Respawned at checkpoint 3"), FVector::Dist2D(Character->GetActorLocation(), Three->GetActorLocation()) < 50.0);
+			TestEqual(TEXT("Sand topped up to the checkpoint's minimum"), Sand->GetCurrentSand(), Three->MinSandOnRespawn);
+			TestTrue(TEXT("The section's hourglass is back"), Hourglass->IsAvailable());
+			TestFalse(TEXT("The section's chute is unfrozen"), Chute->GetTimeable()->IsFrozen());
+			TestTrue(TEXT("The chute's props are gone"), Chute->GetLiveProps().IsEmpty());
+			TestEqual(TEXT("Still fading in"), GameMode->GetMode(), EStopwatchMode::Respawning);
+			NextStep();
+			return false;
+
+		case 6:
+		{
+			if (!GameMode->IsInPlay())
+			{
+				if (SinceStep > 3.0)
+				{
+					AddError(TEXT("Never got back to Playing"));
+					return true;
+				}
+
+				return false;
+			}
+
+			TestEqual(TEXT("Back to Playing"), GameMode->GetMode(), EStopwatchMode::Playing);
+			TestTrue(TEXT("Death cause hidden"), HUD->GetDeathCauseText().IsEmpty());
+
+			FString Csv;
+			FFileHelper::LoadFileToString(Csv, *Logger->GetCsvPath());
+			TestTrue(TEXT("The death is in the playtest log"), Csv.Contains(TEXT(",3,3. DROP CHUTE,death_Crushed,")));
+
+			// debug F5
+			GameMode->TeleportToNextCheckpoint();
+			TestEqual(TEXT("F5 goes to the next checkpoint"), GameMode->GetCurrentCheckpoint() ? GameMode->GetCurrentCheckpoint()->SectionId : 0, 4);
+			return true;
+		}
+
+		default:
+			return true;
+		}
+	}));
+
+	return true;
+}
+
+/**
+ *  The collapse, dying to it, and the win. Ends the run, so it's the last of the arena tests
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeArenaWinTest, "Stopwatch.Arena.Win", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTimeArenaWinTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = FindArenaWorld();
+
+	if (!World)
+	{
+		AddInfo(TEXT("Skipped: Lvl_TimeTest isn't the running game's level."));
+		return true;
+	}
+
+	EnsurePlaying(World);
+
+	AStopwatchPlayerController* Controller = Cast<AStopwatchPlayerController>(World->GetFirstPlayerController());
+	AStopwatchCharacter* Character = Controller ? Controller->GetPawn<AStopwatchCharacter>() : nullptr;
+	AStopwatchGameMode* GameMode = World->GetAuthGameMode<AStopwatchGameMode>();
+	UPlaytestLogger* Logger = UPlaytestLogger::Get(World);
+	ACheckpoint* Finale = FindActor<ACheckpoint>(World, [](const ACheckpoint* Actor) { return Actor->SectionId == 11; });
+	ACollapseTrigger* Collapse = FindActor<ACollapseTrigger>(World, [](const ACollapseTrigger*) { return true; });
+	AGoalTrigger* Goal = FindActor<AGoalTrigger>(World, [](const AGoalTrigger*) { return true; });
+
+	if (!TestNotNull(TEXT("Player spawned"), Character) || !TestNotNull(TEXT("Game mode"), GameMode) || !TestNotNull(TEXT("Logger"), Logger)
+		|| !TestNotNull(TEXT("Finale checkpoint"), Finale) || !TestNotNull(TEXT("Collapse trigger"), Collapse) || !TestNotNull(TEXT("Goal"), Goal))
+	{
+		return true;
+	}
+
+	TestEqual(TEXT("The arena's collapse is 30 s"), Collapse->CollapseSeconds, 30.0f);
+	UStopwatchHUDWidget* HUD = Controller->GetHUDWidget();
+
+	struct FState
+	{
+		int32 Step = 0;
+		double StepTime = 0.0;
+		float TimeAtDeath = 0.0f;
+	};
+	TSharedRef<FState> State = MakeShared<FState>();
+	State->StepTime = World->GetTimeSeconds();
+
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([=, this]()
+	{
+		const double Now = World->GetTimeSeconds();
+		const double SinceStep = Now - State->StepTime;
+
+		auto NextStep = [State, Now]()
+		{
+			++State->Step;
+			State->StepTime = Now;
+		};
+
+		auto Place = [Character](const FVector& Feet)
+		{
+			Character->SetActorLocation(Feet + FVector(0.0f, 0.0f, 100.0f), false, nullptr, ETeleportType::TeleportPhysics);
+		};
+
+		auto Fail = [this](const TCHAR* What)
+		{
+			AddError(What);
+			return true;
+		};
+
+		switch (State->Step)
+		{
+		case 0:
+			Place(Finale->GetActorLocation());
+			NextStep();
+			return false;
+
+		case 1:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestEqual(TEXT("Finale checkpoint reached"), GameMode->GetCurrentCheckpoint(), Finale);
+			TestFalse(TEXT("No countdown before the trigger"), GameMode->IsCollapseRunning());
+			Place(Collapse->GetActorLocation());
+			NextStep();
+			return false;
+
+		case 2:
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestEqual(TEXT("Collapse mode"), GameMode->GetMode(), EStopwatchMode::Collapse);
+			TestTrue(TEXT("Countdown started from 30"), GameMode->GetCollapseTimeLeft() > 29.0f && GameMode->GetCollapseTimeLeft() < 30.0f);
+			TestTrue(TEXT("Countdown on the HUD"), HUD->GetCollapseText().ToString().Contains(TEXT("COLLAPSING")));
+			TestFalse(TEXT("Not urgent yet"), GameMode->IsCollapseUrgent());
+
+			// back to safety, then let it run out
+			Place(Finale->GetActorLocation());
+			GameMode->SetCollapseTimeLeft(1.0f);
+			TestTrue(TEXT("Urgent under 20 s"), GameMode->IsCollapseUrgent());
+			NextStep();
+			return false;
+
+		case 3:
+			if (!Character->IsDying())
+			{
+				return SinceStep > 3.0 ? Fail(TEXT("The countdown didn't kill the player")) : false;
+			}
+
+			TestEqual(TEXT("The collapse kills"), HUD->GetDeathCauseText().ToString(), FString(TEXT("The tower collapsed")));
+			NextStep();
+			return false;
+
+		case 4:
+			if (!GameMode->IsInPlay())
+			{
+				return SinceStep > 3.0 ? Fail(TEXT("Never got back in play")) : false;
+			}
+
+			TestEqual(TEXT("Back in the collapse"), GameMode->GetMode(), EStopwatchMode::Collapse);
+			TestTrue(TEXT("Countdown restarted"), GameMode->GetCollapseTimeLeft() > 29.0f);
+			TestTrue(TEXT("At the finale checkpoint"), FVector::Dist2D(Character->GetActorLocation(), Finale->GetActorLocation()) < 50.0);
+
+			// a fall doesn't give the time back
+			State->TimeAtDeath = GameMode->GetCollapseTimeLeft();
+			Character->KillPlayer(EDeathCause::Fall);
+			NextStep();
+			return false;
+
+		case 5:
+			if (!GameMode->IsInPlay())
+			{
+				return SinceStep > 3.0 ? Fail(TEXT("Never got back in play after the fall")) : false;
+			}
+
+			AddInfo(FString::Printf(TEXT("%.2fs left before the fall, %.2fs after"), State->TimeAtDeath, GameMode->GetCollapseTimeLeft()));
+			TestTrue(TEXT("A fall keeps the time that was left"), FMath::IsNearlyEqual(GameMode->GetCollapseTimeLeft(), State->TimeAtDeath, 0.3f));
+			Place(Goal->GetActorLocation());
+			NextStep();
+			return false;
+
+		case 6:
+		{
+			if (SinceStep < 0.2)
+			{
+				return false;
+			}
+
+			TestEqual(TEXT("Won"), GameMode->GetMode(), EStopwatchMode::Won);
+			TestFalse(TEXT("The countdown stops"), GameMode->IsCollapseRunning());
+			TestFalse(TEXT("The run is over"), Logger->IsRunActive());
+			TestTrue(TEXT("Cursor shown for the Quit button"), Controller->ShouldShowMouseCursor());
+
+			const FString Screen = Controller->GetMenuWidget()->GetScreenText();
+			AddInfo(Screen);
+			TestTrue(TEXT("Win screen shows the time"), Screen.Contains(TEXT("Time")));
+			TestTrue(TEXT("Win screen counts the collapse death"), Screen.Contains(TEXT("Collapse 1")));
+			TestTrue(TEXT("Win screen shows the log folder"), Screen.Contains(Logger->GetFolder()));
+
+			TArray<FString> Lines;
+			FFileHelper::LoadFileToStringArray(Lines, *Logger->GetCsvPath());
+			TestTrue(TEXT("Summary row last, completed"), !Lines.IsEmpty() && Lines.Last().StartsWith(TEXT("summary,")) && Lines.Last().EndsWith(TEXT(",yes")));
+			TestTrue(TEXT("The collapse death is logged"), Lines.ContainsByPredicate([](const FString& Line) { return Line.Contains(TEXT("death_Collapse")); }));
+
+			// nothing dies after the win
+			Character->KillPlayer(EDeathCause::Fall);
+			TestFalse(TEXT("No deaths on the win screen"), Character->IsDying());
+			return true;
+		}
 
 		default:
 			return true;

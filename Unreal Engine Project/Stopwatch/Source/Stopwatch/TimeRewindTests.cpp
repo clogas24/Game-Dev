@@ -346,8 +346,6 @@ bool FLevelPieceWorldTest::RunTest(const FString& Parameters)
 	// the player: the abstract C++ class needs its blueprint
 	UClass* CharacterClass = LoadClass<AStopwatchCharacter>(nullptr, TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_C"));
 	AStopwatchCharacter* Character = nullptr;
-	const FVector RespawnPoint(0.0f, -5000.0f, 500.0f);
-	World->SpawnActor<APlayerStart>(RespawnPoint, FRotator::ZeroRotator);
 
 	if (TestNotNull(TEXT("Character blueprint"), CharacterClass))
 	{
@@ -403,9 +401,9 @@ bool FLevelPieceWorldTest::RunTest(const FString& Parameters)
 
 			if (Character)
 			{
-				TestFalse(TEXT("Respawned"), Character->IsDying());
-				TestEqual(TEXT("Respawn refills the sand"), Character->GetTimeSand()->GetCurrentSand(), Character->GetTimeSand()->MaxSand);
-				TestTrue(TEXT("Respawned at the PlayerStart"), FVector::Dist2D(Character->GetActorLocation(), RespawnPoint) < 200.0);
+				// respawning is the game mode's job, and this world has none: the arena tests cover it
+				TestTrue(TEXT("Without a game mode, the player stays dead"), Character->IsDying());
+				TestEqual(TEXT("Sand still untouched"), Character->GetTimeSand()->GetCurrentSand(), 5.0f);
 			}
 
 			Platform->GetTimeable()->Rewind();

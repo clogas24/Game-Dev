@@ -177,6 +177,44 @@ void UTimeableComponent::ClearHistory()
 	SampleCount = 0;
 }
 
+void UTimeableComponent::ResetTimeState()
+{
+	const bool bWasFrozen = bIsFrozen;
+	const bool bWasRewinding = IsRewinding();
+
+	if (bIsFrozen)
+	{
+		bIsFrozen = false;
+		GetWorld()->GetTimerManager().ClearTimer(UnfreezeTimer);
+	}
+
+	// a Recorded rewind and a freeze both stopped the owner's time and saved the dilation it had
+	if (bWasFrozen || (bWasRewinding && RewindMode == ERewindMode::Recorded))
+	{
+		GetOwner()->CustomTimeDilation = SavedTimeDilation;
+	}
+
+	// the owner decides whether it simulates, so the saved velocities are dropped rather than restored
+	SavedBodies.Reset();
+	RestoreOverlays();
+	Phase = EPhase::Idle;
+	HoldTimeLeft = 0.0f;
+	ClearHistory();
+
+	AuthoredAlpha = 0.0f;
+	ApplyAuthoredPose();
+
+	if (bWasFrozen)
+	{
+		OnFrozenChanged.Broadcast(false);
+	}
+
+	if (bWasRewinding)
+	{
+		OnRewindChanged.Broadcast(false);
+	}
+}
+
 void UTimeableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);

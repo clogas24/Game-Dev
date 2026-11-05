@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Resettable.h"
 #include "PhysicsProp.generated.h"
 
 class UStaticMesh;
@@ -21,7 +22,7 @@ enum class EPropShape : uint8
  *  Timeable physics object. Scale the actor to size it
  */
 UCLASS()
-class APhysicsProp : public AActor
+class APhysicsProp : public AActor, public IResettable
 {
 	GENERATED_BODY()
 
@@ -33,6 +34,15 @@ class APhysicsProp : public AActor
 
 public:
 
+	/** Section whose checkpoints reset this piece. 0 means none */
+	UPROPERTY(EditAnywhere, Category="Section")
+	int32 SectionId = 0;
+
+	virtual int32 GetSectionId() const override { return SectionId; }
+
+	/** Back to how the level started */
+	virtual void ResetToStart() override;
+
 	UPROPERTY(EditAnywhere, Category="Prop")
 	EPropShape Shape = EPropShape::Cube;
 
@@ -43,6 +53,10 @@ public:
 	/** Resistance to spinning. High values stop a box from tumbling, so it stays usable as a step */
 	UPROPERTY(EditAnywhere, Category="Prop", meta=(ClampMin="0"))
 	float AngularDamping = 0.0f;
+
+	/** Resistance to moving. High values make a prop drift down slowly, so it's easy to freeze in mid air */
+	UPROPERTY(EditAnywhere, Category="Prop", meta=(ClampMin="0"))
+	float LinearDamping = 0.0f;
 
 	/** Stay kinematic until Wake is called, so a prop can wait on a ramp or a ledge */
 	UPROPERTY(EditAnywhere, Category="Prop")
