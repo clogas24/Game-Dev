@@ -27,7 +27,12 @@ Development builds also have these debug keys:
 
 ## Running the game
 
-_Placeholder: instructions for the final Windows build go here._
+Windows 10 or 11, 64-bit. Download `Stopwatch_Windows_v0.1.0.zip` from Box, extract it anywhere, and run `Stopwatch.exe`. Nothing needs installing. If SmartScreen warns about an unknown publisher, choose *More info → Run anyway*.
+
+To build it yourself, package a Shipping build into `Builds/Windows` (the `Builds/` folder is ignored by git):
+```
+"C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun -project="<path>\Stopwatch.uproject" -noP4 -platform=Win64 -clientconfig=Shipping -build -cook -allmaps -stage -pak -archive -archivedirectory="<path>\Builds\Windows" -prereqs -nodebuginfo -unattended
+```
 
 ## Playtest logs
 
@@ -37,7 +42,7 @@ Every run writes a CSV, flushed one row at a time, to:
 <project or build folder>/Saved/Playtests/Playtest_<timestamp>.csv
 ```
 
-For a packaged build, the folder is under the build's own `Saved` folder. The pause and win screens show the exact path. Each CSV records:
+For the packaged Windows build, that folder is `%LOCALAPPDATA%\Stopwatch\Saved\Playtests\`. The pause and win screens show the exact path. Each CSV records:
 - the build version and date;
 - one row per section as it ends, per death, and when the run ends (quit, restart or win);
 - a final summary row.
